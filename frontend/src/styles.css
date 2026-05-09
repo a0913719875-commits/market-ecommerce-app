@@ -1,0 +1,300 @@
+:root {
+  color: #1c221f;
+  background: #f4f2ed;
+  font-family: Inter, "Noto Sans TC", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  align-items: center;
+  background: #196b46;
+  border: 0;
+  border-radius: 8px;
+  color: white;
+  cursor: pointer;
+  display: inline-flex;
+  font-weight: 700;
+  gap: 8px;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 14px;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+input,
+select,
+textarea {
+  background: white;
+  border: 1px solid #d8d5cb;
+  border-radius: 8px;
+  color: #1c221f;
+  padding: 10px 12px;
+  width: 100%;
+}
+
+label {
+  color: #5c635e;
+  display: grid;
+  font-size: 14px;
+  gap: 6px;
+}
+
+.app-shell {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.sidebar {
+  background: #1f3028;
+  color: white;
+  padding: 24px 18px;
+}
+
+.brand {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.brand-mark {
+  align-items: center;
+  background: #f0c35a;
+  border-radius: 8px;
+  color: #1f3028;
+  display: inline-flex;
+  font-size: 20px;
+  font-weight: 800;
+  height: 42px;
+  justify-content: center;
+  width: 42px;
+}
+
+.brand small,
+.topbar p,
+.row-item span,
+.section-header span,
+.empty-state {
+  color: #70776f;
+}
+
+.brand small {
+  display: block;
+  color: #cfd8d2;
+  margin-top: 2px;
+}
+
+.nav-list {
+  display: grid;
+  gap: 8px;
+}
+
+.nav-link {
+  align-items: center;
+  border-radius: 8px;
+  color: #dbe7e0;
+  display: flex;
+  gap: 10px;
+  min-height: 42px;
+  padding: 0 12px;
+  text-decoration: none;
+}
+
+.nav-link.active,
+.nav-link:hover {
+  background: #315242;
+  color: white;
+}
+
+.main-panel {
+  padding: 28px;
+}
+
+.topbar {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.topbar h1,
+.topbar p,
+.section-header h2,
+.product-card h3 {
+  margin: 0;
+}
+
+.user-panel {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+}
+
+.content-grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.panel,
+.metric {
+  background: #ffffff;
+  border: 1px solid #e2dfd7;
+  border-radius: 8px;
+  padding: 18px;
+}
+
+.wide {
+  grid-column: span 2;
+}
+
+.section-header {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.product-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+}
+
+.product-card {
+  border: 1px solid #e7e2d8;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+}
+
+.product-image {
+  align-items: center;
+  aspect-ratio: 4 / 3;
+  background: #e9efe8;
+  border-radius: 8px;
+  color: #196b46;
+  display: flex;
+  font-size: 42px;
+  font-weight: 800;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.product-image img {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.product-card p {
+  color: #70776f;
+  margin: 6px 0 0;
+}
+
+.card-footer,
+.row-actions {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.form-panel,
+.form-panel form {
+  display: grid;
+  gap: 14px;
+}
+
+.list {
+  display: grid;
+  gap: 10px;
+}
+
+.row-item {
+  align-items: center;
+  border: 1px solid #ebe7df;
+  border-radius: 8px;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 12px;
+}
+
+.row-item div {
+  display: grid;
+  gap: 4px;
+}
+
+.metric {
+  display: grid;
+  gap: 10px;
+}
+
+.metric strong,
+.wallet-summary strong {
+  font-size: 32px;
+}
+
+.wallet-summary {
+  align-content: center;
+  display: grid;
+  gap: 10px;
+}
+
+.notice {
+  background: #e9efe8;
+  border-radius: 8px;
+  color: #196b46;
+  margin: 0;
+  padding: 12px;
+}
+
+@media (max-width: 900px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: static;
+  }
+
+  .nav-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .content-grid,
+  .wide {
+    grid-column: auto;
+    grid-template-columns: 1fr;
+  }
+
+  .topbar,
+  .row-item,
+  .order-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
