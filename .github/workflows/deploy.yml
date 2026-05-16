@@ -1,0 +1,139 @@
+name: 自動部署（Cloud Run / Firebase）
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: '部署目標'
+        required: true
+        default: 'cloud-run'
+        type: choice
+        options:
+          - cloud-run
+          - firebase
+  # 測試通過後由 test.yml 透過 n8n webhook 觸發
+  repository_dispatch:
+    types: [deploy]
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: asia-east1
+  SERVICE_NAME: market-ecommerce-app
+  IMAGE: gcr.io/${{ secrets.GCP_PROJECT_ID }}/market-ecommerce-app
+
+jobs:
+  deploy-cloud-run:
+    if: ${{ inputs.target == 'cloud-run' || github.event_name == 'repository_dispatch' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: 驗證 Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: 設定 gcloud CLI
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: 設定 Docker 驗證
+        run: gcloud auth configure-docker
+
+      - name: 建構 Docker Image
+        run: |
+          docker build \
+            --tag ${{ env.IMAGE }}:${{ github.sha }} \
+            --tag ${{ env.IMAGE }}:latest \
+            .
+
+      - name: 推送 Image 到 GCR
+        run: |
+          docker push ${{ env.IMAGE }}:${{ github.sha }}
+          docker push ${{ env.IMAGE }}:latest
+
+      - name: 部署到 Cloud Run
+        id: deploy
+        run: |
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --image ${{ env.IMAGE }}:${{ github.sha }} \
+            --platform managed \
+            --region ${{ env.REGION }} \
+            --allow-unauthenticated \
+            --set-env-vars NODE_ENV=production \
+            --format json > deploy_output.json
+
+          SERVICE_URL=$(cat deploy_output.json | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('status',{}).get('url',''))" 2>/dev/null || \
+            gcloud run services describe ${{ env.SERVICE_NAME }} --region=${{ env.REGION }} --format='value(status.url)')
+          echo "url=$SERVICE_URL" >> $GITHUB_OUTPUT
+
+      - name: 部署成功通知 n8n → LINE
+        if: success()
+        run: |
+          curl -s -X POST https://ppplay.zeabur.app/webhook/deploy-trigger \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"event\": \"deploy_success\",
+              \"platform\": \"Cloud Run\",
+              \"service\": \"${{ env.SERVICE_NAME }}\",
+              \"url\": \"${{ steps.deploy.outputs.url }}\",
+              \"commit\": \"${{ github.sha }}\",
+              \"actor\": \"${{ github.actor }}\"
+            }"
+
+      - name: 部署失敗通知 n8n → LINE
+        if: failure()
+        run: |
+          curl -s -X POST https://ppplay.zeabur.app/webhook/deploy-trigger \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"event\": \"deploy_failed\",
+              \"platform\": \"Cloud Run\",
+              \"service\": \"${{ env.SERVICE_NAME }}\",
+              \"run_url\": \"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
+            }"
+
+  deploy-firebase:
+    if: ${{ inputs.target == 'firebase' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: 設定 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 安裝依賴
+        run: npm ci
+
+      - name: 建構
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: 部署到 Firebase Hosting
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          channelId: live
+          projectId: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: 部署成功通知 n8n → LINE
+        if: success()
+        run: |
+          curl -s -X POST https://ppplay.zeabur.app/webhook/deploy-trigger \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"event\": \"deploy_success\",
+              \"platform\": \"Firebase Hosting\",
+              \"service\": \"${{ env.SERVICE_NAME }}\",
+              \"commit\": \"${{ github.sha }}\"
+            }"
