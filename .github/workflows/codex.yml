@@ -60,8 +60,12 @@ jobs:
           BRANCH="codex/issue-${{ inputs.issue_number }}"
           git checkout -b $BRANCH
 
-          # 執行 Codex 開發
-          codex --approval-mode full-auto \
+          # 執行 Codex 開發（新版 CLI 語法）
+          codex \
+            --model gpt-4o \
+            --full-auto \
+            "${{ steps.prompt.outputs.prompt }}" || \
+          codex \
             --model gpt-4o \
             "${{ steps.prompt.outputs.prompt }}"
 
