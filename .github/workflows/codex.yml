@@ -26,108 +26,76 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 安裝依賴
+        run: pip install openai -q
+
       - name: 讀取 Issue 內容
         id: issue
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           BODY=$(gh issue view ${{ inputs.issue_number }} --json body -q '.body')
+          TITLE=$(gh issue view ${{ inputs.issue_number }} --json title -q '.title')
           echo "body<<EOF" >> $GITHUB_OUTPUT
           echo "$BODY" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
-
-          TITLE=$(gh issue view ${{ inputs.issue_number }} --json title -q '.title')
           echo "title=$TITLE" >> $GITHUB_OUTPUT
 
-      - name: 提取 Codex Prompt
-        id: prompt
-        run: |
-          # 從 Issue body 提取 ## Codex Prompt 區塊
-          PROMPT=$(echo '${{ steps.issue.outputs.body }}' | \
-            awk '/^## Codex Prompt/{found=1; next} found && /^## /{exit} found{print}' | \
-            sed 's/^```//;s/```$//' | tr -d '\r')
-          echo "prompt<<EOF" >> $GITHUB_OUTPUT
-          echo "$PROMPT" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: 安裝 Codex CLI
-        run: npm install -g @openai/codex
-
-      - name: 執行 Codex 自動開發
+      - name: AI 自動開發
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: |
-          BRANCH="codex/issue-${{ inputs.issue_number }}"
-          git checkout -b $BRANCH
+          ISSUE_BODY: ${{ steps.issue.outputs.body }}
+          ISSUE_TITLE: ${{ steps.issue.outputs.title }}
+          ISSUE_NUMBER: ${{ inputs.issue_number }}
+          CATEGORY: ${{ inputs.category }}
+        run: python scripts/ai_develop.py
 
-          # 執行 Codex 開發（新版 CLI 語法）
-          codex \
-            --model gpt-4o \
-            --full-auto \
-            "${{ steps.prompt.outputs.prompt }}" || \
-          codex \
-            --model gpt-4o \
-            "${{ steps.prompt.outputs.prompt }}"
-
-      - name: 提交變更
+      - name: 提交變更並建立 PR
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          BRANCH="codex/issue-${{ inputs.issue_number }}"
-          git config user.name "Codex Bot"
-          git config user.email "codex-bot@github.com"
+          BRANCH="ai/issue-${{ inputs.issue_number }}"
+          git config user.name "AI Developer Bot"
+          git config user.email "ai-dev@github.com"
+          git checkout -b $BRANCH
           git add -A
 
           if git diff --cached --quiet; then
-            echo "沒有變更，跳過 PR 建立"
-            exit 0
-          fi
+            echo "沒有新檔案，直接關閉 Issue"
+          else
+            git commit -m "feat(AI): 自動開發 Issue #${{ inputs.issue_number }}"
+            git push origin $BRANCH
+            gh pr create \
+              --title "🤖 [AI] ${{ steps.issue.outputs.title }}" \
+              --body "## AI 自動開發完成
 
-          git commit -m "feat: Codex 自動開發 - Issue #${{ inputs.issue_number }}
-
+          Issue：${{ inputs.issue_url }}
           分類：${{ inputs.category }}
-          Issue：${{ inputs.issue_url }}"
-
-          git push origin $BRANCH
-
-          # 建立 PR
-          gh pr create \
-            --title "🤖 [Codex] ${{ steps.issue.outputs.title }}" \
-            --body "## 自動開發說明
-
-          由 Codex 根據 Issue #${{ inputs.issue_number }} 自動生成。
-
-          **關聯 Issue：** ${{ inputs.issue_url }}
-          **分類：** ${{ inputs.category }}
-
-          ## 測試項目
-          - [ ] 功能測試通過
-          - [ ] 無 Breaking Changes
-          - [ ] 已更新相關文件
 
           Closes #${{ inputs.issue_number }}" \
-            --base main \
-            --head $BRANCH
+              --base main \
+              --head $BRANCH
+          fi
 
-      - name: 自動關閉 Issue（開發完成）
+      - name: 關閉 Issue
         if: success()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh issue close ${{ inputs.issue_number }} \
-            --comment "🤖 Codex 自動開發完成，PR 已建立。Issue 自動關閉並觸發完成通知。" \
+            --comment "✅ AI 自動開發完成！" \
             --reason completed || true
 
-      - name: 通知 n8n Issue 已處理
+      - name: 通知 n8n 完成
         if: always()
         run: |
+          STATUS="${{ job.status }}"
+          NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           curl -s -X POST https://ppplay.zeabur.app/webhook/github-issue-events \
             -H "Content-Type: application/json" \
-            -d "{\"action\":\"codex_completed\",\"issue\":{\"number\":${{ inputs.issue_number }},\"title\":\"${{ steps.issue.outputs.title }}\",\"html_url\":\"${{ inputs.issue_url }}\"}}"
-
-      - name: 通知 n8n 自主循環
-        if: always()
-        run: |
-          curl -s -X POST https://ppplay.zeabur.app/webhook/github-actions-result \
-            -H "Content-Type: application/json" \
-            -d "{\"conclusion\":\"${{ job.status }}\",\"issue_number\":\"${{ inputs.issue_number }}\",\"issue_url\":\"${{ inputs.issue_url }}\",\"category\":\"${{ inputs.category }}\",\"repository\":{\"full_name\":\"a0913719875-commits/market-ecommerce-app\"}}"
+            -d "{\"action\":\"closed\",\"issue\":{\"number\":${{ inputs.issue_number }},\"title\":\"${{ steps.issue.outputs.title }}\",\"html_url\":\"${{ inputs.issue_url }}\",\"state\":\"closed\",\"closed_at\":\"$NOW\",\"body\":\"LINE OA 用戶：\`U9f200ef6c095c25edd6aa44cd927fa1b\`\",\"labels\":[]}}" || true
