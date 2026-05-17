@@ -111,3 +111,10 @@ jobs:
           curl -s -X POST https://ppplay.zeabur.app/webhook/github-issue-events \
             -H "Content-Type: application/json" \
             -d "{\"action\":\"codex_completed\",\"issue\":{\"number\":${{ inputs.issue_number }},\"title\":\"${{ steps.issue.outputs.title }}\",\"html_url\":\"${{ inputs.issue_url }}\"}}"
+
+      - name: 通知 n8n 自主循環
+        if: always()
+        run: |
+          curl -s -X POST https://ppplay.zeabur.app/webhook/github-actions-result \
+            -H "Content-Type: application/json" \
+            -d "{\"conclusion\":\"${{ job.status }}\",\"issue_number\":\"${{ inputs.issue_number }}\",\"issue_url\":\"${{ inputs.issue_url }}\",\"category\":\"${{ inputs.category }}\",\"repository\":{\"full_name\":\"a0913719875-commits/market-ecommerce-app\"}}"
