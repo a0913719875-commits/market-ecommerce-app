@@ -105,6 +105,15 @@ jobs:
             --base main \
             --head $BRANCH
 
+      - name: 自動關閉 Issue（開發完成）
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue close ${{ inputs.issue_number }} \
+            --comment "🤖 Codex 自動開發完成，PR 已建立。Issue 自動關閉並觸發完成通知。" \
+            --reason completed || true
+
       - name: 通知 n8n Issue 已處理
         if: always()
         run: |
