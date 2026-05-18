@@ -86,7 +86,7 @@ jobs:
               git commit -m "feat(AI): 自動開發 Issue #${{ inputs.issue_number }}"
               git push origin $BRANCH
               PR_URL=$(gh pr create \
-                --title "🤖 [AI] ${{ steps.issue.outputs.title }}" \
+                --title "AI Issue #${{ inputs.issue_number }}" \
                 --body "Issue: ${{ inputs.issue_url }}" \
                 --base main --head $BRANCH)
               echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
