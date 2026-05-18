@@ -85,7 +85,7 @@ jobs:
               echo "no_changes=true" >> $GITHUB_OUTPUT
             else
               git commit -m "feat(AI): 自動開發 Issue #${{ inputs.issue_number }}"
-              git push origin $BRANCH
+              git push --force-with-lease origin $BRANCH || git push origin $BRANCH
               PR_URL=$(gh pr create \
                 --title "AI Issue #${{ inputs.issue_number }}" \
                 --body "Issue: ${{ inputs.issue_url }}" \
