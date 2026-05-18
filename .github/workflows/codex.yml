@@ -21,6 +21,8 @@ jobs:
       contents: write
       pull-requests: write
       issues: write
+      pages: write
+      id-token: write
 
     steps:
       - name: Checkout
@@ -56,6 +58,7 @@ jobs:
         run: python scripts/ai_develop.py
 
       - name: 提交變更並建立 PR
+        id: pr
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -66,21 +69,41 @@ jobs:
           git add -A
 
           if git diff --cached --quiet; then
-            echo "沒有新檔案，直接關閉 Issue"
+            echo "no_changes=true" >> $GITHUB_OUTPUT
           else
             git commit -m "feat(AI): 自動開發 Issue #${{ inputs.issue_number }}"
             git push origin $BRANCH
-            gh pr create \
+            PR_URL=$(gh pr create \
               --title "🤖 [AI] ${{ steps.issue.outputs.title }}" \
-              --body "## AI 自動開發完成
-
-          Issue：${{ inputs.issue_url }}
-          分類：${{ inputs.category }}
-
-          Closes #${{ inputs.issue_number }}" \
-              --base main \
-              --head $BRANCH
+              --body "Issue: ${{ inputs.issue_url }}" \
+              --base main --head $BRANCH)
+            echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
           fi
+
+      - name: 偵測是否為靜態網站
+        id: detect
+        run: |
+          if [ -f "index.html" ] || [ -f "ai_output_issue_${{ inputs.issue_number }}.md" ]; then
+            echo "is_static=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_static=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 部署靜態網站到 GitHub Pages
+        id: deploy
+        if: steps.detect.outputs.is_static == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 啟用 GitHub Pages（若還未啟用）
+          gh api repos/${{ github.repository }}/pages \
+            -X POST --field source[branch]=main --field source[path]=/ 2>/dev/null || true
+
+          REPO_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f2)
+          OWNER=$(echo "${{ github.repository }}" | cut -d'/' -f1)
+          PAGE_URL="https://${OWNER}.github.io/${REPO_NAME}/"
+          echo "page_url=$PAGE_URL" >> $GITHUB_OUTPUT
+          echo "部署網址：$PAGE_URL"
 
       - name: 關閉 Issue
         if: success()
@@ -88,14 +111,32 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh issue close ${{ inputs.issue_number }} \
-            --comment "✅ AI 自動開發完成！" \
+            --comment "✅ AI 開發完成！" \
             --reason completed || true
 
-      - name: 通知 n8n 完成
+      - name: 通知 n8n 完成（含網址）
         if: always()
+        env:
+          DEPLOY_URL: ${{ steps.deploy.outputs.page_url }}
+          PR_URL: ${{ steps.pr.outputs.pr_url }}
         run: |
           STATUS="${{ job.status }}"
           NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          DEPLOY_URL="${DEPLOY_URL:-}"
+
+          # 通知 n8n GitHub Issue 關閉
           curl -s -X POST https://ppplay.zeabur.app/webhook/github-issue-events \
             -H "Content-Type: application/json" \
-            -d "{\"action\":\"closed\",\"issue\":{\"number\":${{ inputs.issue_number }},\"title\":\"${{ steps.issue.outputs.title }}\",\"html_url\":\"${{ inputs.issue_url }}\",\"state\":\"closed\",\"closed_at\":\"$NOW\",\"body\":\"LINE OA 用戶：\`U9f200ef6c095c25edd6aa44cd927fa1b\`\",\"labels\":[]}}" || true
+            -d "{\"action\":\"closed\",\"issue\":{\"number\":${{ inputs.issue_number }},\"title\":\"${{ steps.issue.outputs.title }}\",\"html_url\":\"${{ inputs.issue_url }}\",\"state\":\"closed\",\"closed_at\":\"$NOW\",\"body\":\"LINE OA 用戶：\`U9f200ef6c095c25edd6aa44cd927fa1b\`\",\"labels\":[]},\"deploy_url\":\"$DEPLOY_URL\"}" || true
+
+          # 直接推播 LINE（含網址）
+          if [ -n "$DEPLOY_URL" ]; then
+            MSG="完成品網址：\n${DEPLOY_URL}\n\n（若頁面未顯示請等 1-2 分鐘）"
+          else
+            MSG="開發完成！\nPR: ${PR_URL:-已建立}"
+          fi
+
+          curl -s -X POST "https://api.line.me/v2/bot/message/push" \
+            -H "Authorization: Bearer ${{ secrets.LINE_CHANNEL_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"to\":\"U9f200ef6c095c25edd6aa44cd927fa1b\",\"messages\":[{\"type\":\"text\",\"text\":\"$MSG\"}]}" || true
