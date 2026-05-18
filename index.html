@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 贈言卡片</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f2f5;
+            font-family: Arial, sans-serif;
+        }
+        .card {
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            padding: 20px;
+            text-align: center;
+            width: 300px;
+        }
+        .emoji {
+            font-size: 50px;
+            margin-bottom: 15px;
+        }
+        .message {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 15px;
+        }
+        .author {
+            font-size: 14px;
+            color: #777;
+        }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <div class="emoji">😊</div>
+    <div class="message">保持好心情，每天都有新收穫！</div>
+    <div class="author">— AI 贈言</div>
+</div>
+
+<script>
+    const quotes = [
+        { text: "保持好心情，每天都有新收穫！", emoji: "😊" },
+        { text: "永遠不要放棄，因為精彩即將來臨！", emoji: "🚀" },
+        { text: "擁抱挑戰，它們會帶來成長！", emoji: "🌱" },
+        { text: "今天的一小步，是成功的一大步！", emoji: "👣" },
+        { text: "與其許願，不如行動！", emoji: "💪" },
+        { text: "對自己誠實，成功便不再遙遠！", emoji: "🕶️" },
+        { text: "每一次失敗，都是成功的墊腳石！", emoji: "⚡" }
+    ];
+
+    function getRandomQuote() {
+        const randomIndex = Math.floor(Math.random() * quotes.length);
+        return quotes[randomIndex];
+    }
+
+    function updateCard() {
+        const quote = getRandomQuote();
+        document.querySelector('.emoji').textContent = quote.emoji;
+        document.querySelector('.message').textContent = quote.text;
+    }
+
+    setInterval(updateCard, 5000);
+</script>
+
+</body>
+</html>
