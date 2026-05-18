@@ -8,6 +8,19 @@ issue_body   = os.environ.get("ISSUE_BODY", "")
 issue_title  = os.environ.get("ISSUE_TITLE", "")
 issue_number = os.environ.get("ISSUE_NUMBER", "0")
 category     = os.environ.get("CATEGORY", "新功能開發")
+# 修正亂碼：嘗試 latin-1 → utf-8 重新解碼
+try:
+    category = category.encode('latin-1').decode('utf-8')
+except Exception:
+    pass
+try:
+    issue_title = issue_title.encode('latin-1').decode('utf-8')
+except Exception:
+    pass
+try:
+    issue_body = issue_body.encode('latin-1').decode('utf-8')
+except Exception:
+    pass
 
 # 提取 Codex Prompt 區塊
 prompt = ""
