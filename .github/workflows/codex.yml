@@ -57,41 +57,45 @@ jobs:
           CATEGORY: ${{ inputs.category }}
         run: python scripts/ai_develop.py
 
-      - name: 提交變更並建立 PR
+      - name: 提交變更並建立 PR（或直接推送到 main）
         id: pr
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          BRANCH="ai/issue-${{ inputs.issue_number }}"
           git config user.name "AI Developer Bot"
           git config user.email "ai-dev@github.com"
-          git checkout -b $BRANCH
-          git add -A
 
-          if git diff --cached --quiet; then
-            echo "no_changes=true" >> $GITHUB_OUTPUT
+          if [ -f "index.html" ]; then
+            # 靜態網站：直接推到 main，GitHub Pages 才能真正服務
+            git add -A
+            if git diff --cached --quiet; then
+              echo "no_changes=true" >> $GITHUB_OUTPUT
+            else
+              git commit -m "feat(AI): 自動開發靜態網站 Issue #${{ inputs.issue_number }}"
+              git push origin HEAD:main
+              echo "pushed_to_main=true" >> $GITHUB_OUTPUT
+            fi
           else
-            git commit -m "feat(AI): 自動開發 Issue #${{ inputs.issue_number }}"
-            git push origin $BRANCH
-            PR_URL=$(gh pr create \
-              --title "🤖 [AI] ${{ steps.issue.outputs.title }}" \
-              --body "Issue: ${{ inputs.issue_url }}" \
-              --base main --head $BRANCH)
-            echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
-          fi
-
-      - name: 偵測是否為靜態網站
-        id: detect
-        run: |
-          if [ -f "index.html" ] || [ -f "ai_output_issue_${{ inputs.issue_number }}.md" ]; then
-            echo "is_static=true" >> $GITHUB_OUTPUT
-          else
-            echo "is_static=false" >> $GITHUB_OUTPUT
+            # 非靜態：建立分支 + PR 供審查
+            BRANCH="ai/issue-${{ inputs.issue_number }}"
+            git checkout -b $BRANCH
+            git add -A
+            if git diff --cached --quiet; then
+              echo "no_changes=true" >> $GITHUB_OUTPUT
+            else
+              git commit -m "feat(AI): 自動開發 Issue #${{ inputs.issue_number }}"
+              git push origin $BRANCH
+              PR_URL=$(gh pr create \
+                --title "🤖 [AI] ${{ steps.issue.outputs.title }}" \
+                --body "Issue: ${{ inputs.issue_url }}" \
+                --base main --head $BRANCH)
+              echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
+            fi
           fi
 
       - name: 部署靜態網站到 GitHub Pages
         id: deploy
-        if: steps.detect.outputs.is_static == 'true'
+        if: steps.pr.outputs.pushed_to_main == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -103,7 +107,7 @@ jobs:
           OWNER=$(echo "${{ github.repository }}" | cut -d'/' -f1)
           PAGE_URL="https://${OWNER}.github.io/${REPO_NAME}/"
           echo "page_url=$PAGE_URL" >> $GITHUB_OUTPUT
-          echo "部署網址：$PAGE_URL"
+          echo "✅ 部署網址：$PAGE_URL"
 
       - name: 關閉 Issue
         if: success()
