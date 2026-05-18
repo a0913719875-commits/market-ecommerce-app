@@ -72,6 +72,7 @@ jobs:
               echo "no_changes=true" >> $GITHUB_OUTPUT
             else
               git commit -m "feat(AI): 自動開發靜態網站 Issue #${{ inputs.issue_number }}"
+              git pull --rebase origin main || true
               git push origin HEAD:main
               echo "pushed_to_main=true" >> $GITHUB_OUTPUT
             fi
