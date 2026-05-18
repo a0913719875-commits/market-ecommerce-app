@@ -40,6 +40,7 @@ response = client.chat.completions.create(
                 f"你是一個資深 {category} 開發工程師。"
                 "根據需求生成完整可執行的代碼。"
                 "輸出格式：每個文件用 '=== 文件名 ===' 分隔，後接代碼區塊。"
+                "重要：若需求是網頁、前端、UI、名片、介面、靜態網站，主文件必須命名為 index.html（單一完整 HTML，包含所有 CSS 和 JS，無外部依賴）。"
                 "只輸出代碼，不要額外解釋。"
             )
         },
@@ -75,5 +76,14 @@ if not files_written:
         f.write(f"# Issue #{issue_number} AI 開發輸出\n\n{code_output}")
     files_written.append(out_file)
     print(f"寫入說明文件：{out_file}")
+
+# 若 AI 產出 HTML 但未命名 index.html，自動補建 index.html（GitHub Pages 需要）
+if 'index.html' not in files_written:
+    html_files = [f for f in files_written if f.endswith('.html')]
+    if html_files:
+        import shutil
+        shutil.copy(html_files[0], 'index.html')
+        files_written.append('index.html')
+        print(f"自動建立 index.html（來源：{html_files[0]}）")
 
 print(f"完成！共寫入 {len(files_written)} 個文件：{files_written}")
