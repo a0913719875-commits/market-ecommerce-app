@@ -123,24 +123,27 @@ jobs:
         env:
           DEPLOY_URL: ${{ steps.deploy.outputs.page_url }}
           PR_URL: ${{ steps.pr.outputs.pr_url }}
+          LINE_TOKEN: ${{ secrets.LINE_CHANNEL_TOKEN }}
         run: |
-          STATUS="${{ job.status }}"
           NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          ISSUE_NUM="${{ inputs.issue_number }}"
+          ISSUE_URL="${{ inputs.issue_url }}"
           DEPLOY_URL="${DEPLOY_URL:-}"
+          LINE_USER="U9f200ef6c095c25edd6aa44cd927fa1b"
 
-          # 通知 n8n GitHub Issue 關閉
+          # 通知 n8n GitHub Issue 關閉（不使用 title 避免特殊字元爆炸）
           curl -s -X POST https://ppplay.zeabur.app/webhook/github-issue-events \
             -H "Content-Type: application/json" \
-            -d "{\"action\":\"closed\",\"issue\":{\"number\":${{ inputs.issue_number }},\"title\":\"${{ steps.issue.outputs.title }}\",\"html_url\":\"${{ inputs.issue_url }}\",\"state\":\"closed\",\"closed_at\":\"$NOW\",\"body\":\"LINE OA 用戶：\`U9f200ef6c095c25edd6aa44cd927fa1b\`\",\"labels\":[]},\"deploy_url\":\"$DEPLOY_URL\"}" || true
+            -d "{\"action\":\"closed\",\"issue\":{\"number\":${ISSUE_NUM},\"title\":\"AI Issue #${ISSUE_NUM}\",\"html_url\":\"${ISSUE_URL}\",\"state\":\"closed\",\"closed_at\":\"${NOW}\",\"body\":\"LINE OA User: ${LINE_USER}\",\"labels\":[]},\"deploy_url\":\"${DEPLOY_URL}\"}" || true
 
           # 直接推播 LINE（含網址）
           if [ -n "$DEPLOY_URL" ]; then
-            MSG="完成品網址：\n${DEPLOY_URL}\n\n（若頁面未顯示請等 1-2 分鐘）"
+            MSG="✅ 開發完成！%0aIssue #${ISSUE_NUM}%0a%0a🌐 完成品網址：%0a${DEPLOY_URL}%0a%0a（若頁面未顯示請等 1-2 分鐘）"
           else
-            MSG="開發完成！\nPR: ${PR_URL:-已建立}"
+            MSG="✅ 開發完成！%0aIssue #${ISSUE_NUM}%0a🔗 ${ISSUE_URL}%0a%0aPR: ${PR_URL:-已建立}"
           fi
 
           curl -s -X POST "https://api.line.me/v2/bot/message/push" \
-            -H "Authorization: Bearer ${{ secrets.LINE_CHANNEL_TOKEN }}" \
+            -H "Authorization: Bearer ${LINE_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d "{\"to\":\"U9f200ef6c095c25edd6aa44cd927fa1b\",\"messages\":[{\"type\":\"text\",\"text\":\"$MSG\"}]}" || true
+            -d "{\"to\":\"${LINE_USER}\",\"messages\":[{\"type\":\"text\",\"text\":\"$(echo "$MSG" | sed 's/%0a/\\n/g')\"}]}" || true
