@@ -1,128 +1,71 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Task Management System</title>
+    <title>貨幣換算機</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            background-color: #121212;
-            color: #ffffff;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-        }
-        .container {
-            width: 400px;
             background-color: #1e1e1e;
-            border-radius: 8px;
-            padding: 20px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-        }
-        h1 {
-            text-align: center;
-            color: #00ffcb;
-        }
-        .task-input {
-            display: flex;
-            margin-bottom: 20px;
-        }
-        .task-input input {
-            flex: 1;
-            padding: 10px;
-            border: none;
-            border-radius: 4px;
-            margin-right: 5px;
-        }
-        .task-input button {
-            padding: 10px;
-            border: none;
-            background-color: #00ffcb;
-            color: #1e1e1e;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        .task-input button:hover {
-            background-color: #02e0b4;
-        }
-        ul {
-            padding: 0;
-            list-style: none;
-        }
-        li {
-            background-color: #252525;
-            margin-bottom: 10px;
-            padding: 10px;
-            border-radius: 4px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .task {
             color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
         }
-        .completed {
-            text-decoration: line-through;
-            color: #7f7f7f;
-        }
-        .progress {
-            margin-top: 20px;
+        #converter {
+            background-color: #2c2c2c;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
             text-align: center;
-            color: #7f7f7f;
+        }
+        input[type="number"] {
+            width: 80%;
+            padding: 10px;
+            margin: 10px 0;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        .result {
+            margin: 10px 0;
+            font-size: 18px;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Task Manager</h1>
-        <div class="task-input">
-            <input type="text" id="taskInput" placeholder="Add a new task">
-            <button onclick="addTask()">Add</button>
-        </div>
-        <ul id="taskList"></ul>
-        <div class="progress" id="progress">Progress: 0%</div>
+    <div id="converter">
+        <h1>貨幣換算機</h1>
+        <input type="number" id="twdInput" placeholder="輸入台幣" oninput="convertCurrency()">
+        <div class="result" id="usdResult">美金: $0</div>
+        <div class="result" id="jpyResult">日幣: ¥0</div>
+        <div class="result" id="eurResult">歐元: €0</div>
     </div>
+
     <script>
-        const taskList = document.getElementById('taskList');
-        const progress = document.getElementById('progress');
-        let tasks = [];
-        let completedTasks = 0;
-
-        function addTask() {
-            const taskInput = document.getElementById('taskInput');
-            const taskText = taskInput.value.trim();
-            if (taskText) {
-                tasks.push({ text: taskText, completed: false });
-                taskInput.value = '';
-                renderTasks();
+        function convertCurrency() {
+            const twd = parseFloat(document.getElementById('twdInput').value);
+            if (isNaN(twd)) {
+                document.getElementById('usdResult').textContent = '美金: $0';
+                document.getElementById('jpyResult').textContent = '日幣: ¥0';
+                document.getElementById('eurResult').textContent = '歐元: €0';
+                return;
             }
-        }
+            
+            const usdRate = 0.032; // 1 TWD = 0.032 USD
+            const jpyRate = 3.58;  // 1 TWD = 3.58 JPY
+            const eurRate = 0.029; // 1 TWD = 0.029 EUR
 
-        function toggleTask(index) {
-            tasks[index].completed = !tasks[index].completed;
-            completedTasks = tasks.filter(task => task.completed).length;
-            renderTasks();
-        }
+            const usd = (twd * usdRate).toFixed(2);
+            const jpy = (twd * jpyRate).toFixed(2);
+            const eur = (twd * eurRate).toFixed(2);
 
-        function renderTasks() {
-            taskList.innerHTML = '';
-            tasks.forEach((task, index) => {
-                const li = document.createElement('li');
-                li.innerHTML = `
-                    <span class="task ${task.completed ? 'completed' : ''}" onclick="toggleTask(${index})">${task.text}</span>
-                `;
-                taskList.appendChild(li);
-            });
-            updateProgress();
-        }
-
-        function updateProgress() {
-            const progressPercentage = tasks.length ? Math.round((completedTasks / tasks.length) * 100) : 0;
-            progress.textContent = `Progress: ${progressPercentage}%`;
+            document.getElementById('usdResult').textContent = `美金: $${usd}`;
+            document.getElementById('jpyResult').textContent = `日幣: ¥${jpy}`;
+            document.getElementById('eurResult').textContent = `歐元: €${eur}`;
         }
     </script>
 </body>
