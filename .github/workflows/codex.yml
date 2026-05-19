@@ -13,6 +13,10 @@ on:
         description: '需求分類'
         required: false
         default: '新功能開發'
+      project_id:
+        description: 'customer_id-project_id (Phase 3 隔離)'
+        required: false
+        default: ''
 
 jobs:
   codex-develop:
@@ -71,10 +75,13 @@ jobs:
             if git diff --cached --quiet; then
               echo "no_changes=true" >> $GITHUB_OUTPUT
             else
-              git commit -m "feat(AI): 自動開發靜態網站 Issue #${{ inputs.issue_number }}"
+              PROJECT_ID="${{ inputs.project_id }}"
+              COMMIT_MSG="feat(AI)[${PROJECT_ID:-issue-${{ inputs.issue_number }}}]: 自動開發靜態網站"
+              git commit -m "$COMMIT_MSG"
               git pull --rebase origin main || true
               git push origin HEAD:main
               echo "pushed_to_main=true" >> $GITHUB_OUTPUT
+              echo "project_id=${PROJECT_ID}" >> $GITHUB_OUTPUT
             fi
           else
             # 非靜態：建立分支 + PR 供審查
@@ -132,9 +139,11 @@ jobs:
           DEPLOY_URL="${DEPLOY_URL:-}"
           LINE_USER="U9f200ef6c095c25edd6aa44cd927fa1b"
 
-          # 通知 n8n GitHub Issue 關閉（不使用 title 避免特殊字元爆炸）
+          PROJECT_ID="${{ inputs.project_id }}"
+
+          # 通知 n8n GitHub Issue 關閉（含 project_id）
           curl -s -X POST https://ppplay.zeabur.app/webhook/github-issue-events \
             -H "Content-Type: application/json" \
-            -d "{\"action\":\"closed\",\"issue\":{\"number\":${ISSUE_NUM},\"title\":\"AI Issue #${ISSUE_NUM}\",\"html_url\":\"${ISSUE_URL}\",\"state\":\"closed\",\"closed_at\":\"${NOW}\",\"body\":\"LINE OA User: ${LINE_USER}\",\"labels\":[]},\"deploy_url\":\"${DEPLOY_URL}\"}" || true
+            -d "{\"action\":\"closed\",\"issue\":{\"number\":${ISSUE_NUM},\"title\":\"AI Issue #${ISSUE_NUM}\",\"html_url\":\"${ISSUE_URL}\",\"state\":\"closed\",\"closed_at\":\"${NOW}\",\"body\":\"LINE OA User: ${LINE_USER}\",\"labels\":[]},\"deploy_url\":\"${DEPLOY_URL}\",\"project_id\":\"${PROJECT_ID}\"}" || true
 
           # LINE 通知由 n8n webhook 統一處理，此處不再重複直推
