@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 贈言卡片</title>
+    <title>倒數計時器</title>
     <style>
         body {
             display: flex;
@@ -11,64 +11,81 @@
             align-items: center;
             height: 100vh;
             margin: 0;
-            background-color: #f0f2f5;
+            background-color: #222;
+            color: #fff;
             font-family: Arial, sans-serif;
         }
-        .card {
-            background-color: #fff;
-            border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-            padding: 20px;
+        .container {
             text-align: center;
-            width: 300px;
         }
-        .emoji {
-            font-size: 50px;
-            margin-bottom: 15px;
-        }
-        .message {
+        input[type="number"] {
+            width: 60px;
+            padding: 5px;
+            margin: 0 10px;
             font-size: 18px;
-            color: #333;
-            margin-bottom: 15px;
+            text-align: center;
         }
-        .author {
-            font-size: 14px;
-            color: #777;
+        button {
+            padding: 10px 20px;
+            margin-top: 20px;
+            font-size: 18px;
+            background-color: #555;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #777;
+        }
+        #timer {
+            font-size: 48px;
+            margin: 20px 0;
         }
     </style>
 </head>
 <body>
+    <div class="container">
+        <h1>倒數計時器</h1>
+        <input type="number" id="minutes" placeholder="分鐘" min="0">
+        <div id="timer">00:00</div>
+        <button id="startPauseBtn">開始</button>
+    </div>
 
-<div class="card">
-    <div class="emoji">😊</div>
-    <div class="message">保持好心情，每天都有新收穫！</div>
-    <div class="author">— AI 贈言</div>
-</div>
+    <script>
+        let interval;
+        let isPaused = true;
+        let remainingSeconds = 0;
 
-<script>
-    const quotes = [
-        { text: "保持好心情，每天都有新收穫！", emoji: "😊" },
-        { text: "永遠不要放棄，因為精彩即將來臨！", emoji: "🚀" },
-        { text: "擁抱挑戰，它們會帶來成長！", emoji: "🌱" },
-        { text: "今天的一小步，是成功的一大步！", emoji: "👣" },
-        { text: "與其許願，不如行動！", emoji: "💪" },
-        { text: "對自己誠實，成功便不再遙遠！", emoji: "🕶️" },
-        { text: "每一次失敗，都是成功的墊腳石！", emoji: "⚡" }
-    ];
+        document.getElementById('startPauseBtn').addEventListener('click', function() {
+            if (isPaused) {
+                const minutesInput = document.getElementById('minutes').value;
+                if (!interval) {
+                    const minutes = parseInt(minutesInput, 10) || 0;
+                    remainingSeconds = minutes * 60;
+                }
+                interval = setInterval(updateTimer, 1000);
+                this.textContent = '暫停';
+            } else {
+                clearInterval(interval);
+                interval = null;
+                this.textContent = '開始';
+            }
+            isPaused = !isPaused;
+        });
 
-    function getRandomQuote() {
-        const randomIndex = Math.floor(Math.random() * quotes.length);
-        return quotes[randomIndex];
-    }
-
-    function updateCard() {
-        const quote = getRandomQuote();
-        document.querySelector('.emoji').textContent = quote.emoji;
-        document.querySelector('.message').textContent = quote.text;
-    }
-
-    setInterval(updateCard, 5000);
-</script>
-
+        function updateTimer() {
+            if (remainingSeconds <= 0) {
+                clearInterval(interval);
+                document.getElementById('startPauseBtn').textContent = '開始';
+                isPaused = true;
+                interval = null;
+            } else {
+                remainingSeconds--;
+                const minutes = String(Math.floor(remainingSeconds / 60)).padStart(2, '0');
+                const seconds = String(remainingSeconds % 60).padStart(2, '0');
+                document.getElementById('timer').textContent = `${minutes}:${seconds}`;
+            }
+        }
+    </script>
 </body>
 </html>
