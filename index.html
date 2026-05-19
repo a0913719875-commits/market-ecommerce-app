@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Password Generator</title>
+    <title>Unit Converter</title>
     <style>
         body {
-            background-color: #1e1e1e;
+            background-color: #121212;
             color: #ffffff;
             font-family: Arial, sans-serif;
             display: flex;
@@ -15,81 +15,96 @@
             height: 100vh;
             margin: 0;
         }
-        .container {
-            text-align: center;
-            background-color: #333;
+        .converter {
+            background-color: #1f1f1f;
             padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
         }
-        input[type="number"], button {
-            margin: 10px;
+        .converter h1 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .converter select, .converter input {
+            width: 100%;
             padding: 10px;
-            border-radius: 5px;
-            border: none;
-            font-size: 16px;
-        }
-        button {
-            background-color: #007bff;
-            color: white;
-            cursor: pointer;
-        }
-        button:hover {
-            background-color: #0056b3;
-        }
-        input[type="checkbox"] {
-            margin: 0 5px;
-        }
-        #password {
-            font-size: 20px;
-            word-wrap: break-word;
             margin: 10px 0;
+            border: 1px solid #333;
+            border-radius: 4px;
+            background-color: #333;
+            color: #fff;
+        }
+        .converter button {
+            width: 100%;
+            padding: 10px;
+            border: none;
+            border-radius: 4px;
+            background-color: #6200ea;
+            color: #fff;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        .converter button:hover {
+            background-color: #3700b3;
+        }
+        .converter .result {
+            margin-top: 20px;
+            font-size: 18px;
+            text-align: center;
         }
     </style>
 </head>
 <body>
-
-<div class="container">
-    <h1>Password Generator</h1>
-    <label for="length">Length:</label>
-    <input type="number" id="length" min="4" max="32" value="8">
-    <div>
-        <label><input type="checkbox" id="lowercase" checked> Lowercase</label>
-        <label><input type="checkbox" id="uppercase" checked> Uppercase</label>
-        <label><input type="checkbox" id="numbers" checked> Numbers</label>
-        <label><input type="checkbox" id="symbols"> Symbols</label>
+    <div class="converter">
+        <h1>Unit Converter</h1>
+        <select id="conversionType">
+            <option value="kmToMiles">Kilometers to Miles</option>
+            <option value="milesToKm">Miles to Kilometers</option>
+            <option value="kgToPounds">Kilograms to Pounds</option>
+            <option value="poundsToKg">Pounds to Kilograms</option>
+            <option value="cToF">Celsius to Fahrenheit</option>
+            <option value="fToC">Fahrenheit to Celsius</option>
+        </select>
+        <input type="number" id="inputValue" placeholder="Enter value" />
+        <button onclick="convert()">Convert</button>
+        <div class="result" id="result"></div>
     </div>
-    <button onclick="generatePassword()">Generate Password</button>
-    <div id="password"></div>
-</div>
+    <script>
+        function convert() {
+            const conversionType = document.getElementById('conversionType').value;
+            const inputValue = parseFloat(document.getElementById('inputValue').value);
+            let result;
 
-<script>
-    function generatePassword() {
-        const length = document.getElementById('length').value;
-        const useLowercase = document.getElementById('lowercase').checked;
-        const useUppercase = document.getElementById('uppercase').checked;
-        const useNumbers = document.getElementById('numbers').checked;
-        const useSymbols = document.getElementById('symbols').checked;
+            if (isNaN(inputValue)) {
+                result = "Please enter a valid number.";
+            } else {
+                switch (conversionType) {
+                    case "kmToMiles":
+                        result = (inputValue * 0.621371).toFixed(2) + " Miles";
+                        break;
+                    case "milesToKm":
+                        result = (inputValue / 0.621371).toFixed(2) + " Kilometers";
+                        break;
+                    case "kgToPounds":
+                        result = (inputValue * 2.20462).toFixed(2) + " Pounds";
+                        break;
+                    case "poundsToKg":
+                        result = (inputValue / 2.20462).toFixed(2) + " Kilograms";
+                        break;
+                    case "cToF":
+                        result = ((inputValue * 9/5) + 32).toFixed(2) + " °F";
+                        break;
+                    case "fToC":
+                        result = ((inputValue - 32) * 5/9).toFixed(2) + " °C";
+                        break;
+                    default:
+                        result = "Invalid conversion type.";
+                }
+            }
 
-        let charset = '';
-        if (useLowercase) charset += 'abcdefghijklmnopqrstuvwxyz';
-        if (useUppercase) charset += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-        if (useNumbers) charset += '0123456789';
-        if (useSymbols) charset += '!@#$%^&*()_+-=[]{}|;:",.<>/?';
-        
-        if (charset === '') {
-            document.getElementById('password').textContent = 'Please select at least one character type';
-            return;
+            document.getElementById('result').textContent = result;
         }
-        
-        let password = '';
-        for (let i = 0; i < length; i++) {
-            const randomIndex = Math.floor(Math.random() * charset.length);
-            password += charset[randomIndex];
-        }
-        document.getElementById('password').textContent = password;
-    }
-</script>
-
+    </script>
 </body>
 </html>
