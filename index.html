@@ -3,109 +3,71 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Calculator</title>
+    <title>Weather Card</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
             margin: 0;
-            background-color: #f4f4f9;
+            font-family: Arial, sans-serif;
+            background-color: #f0f4f8;
         }
-        #calculator {
-            background-color: #fff;
+        .weather-card {
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
             padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            width: 300px;
+            text-align: center;
+            color: #333;
         }
-        #display {
-            width: 100%;
-            padding: 10px;
-            font-size: 24px;
-            border: none;
-            text-align: right;
-            margin-bottom: 10px;
-            border-radius: 4px;
-            background-color: #eae9f2;
+        .weather-card h2 {
+            margin: 0 0 10px;
         }
-        .button {
-            width: 60px;
-            height: 40px;
-            margin: 5px;
-            font-size: 18px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: background-color 0.2s;
+        .weather-icon {
+            width: 100px;
+            height: 100px;
+            margin: 10px auto;
         }
-        .button:hover {
-            background-color: #d3d3d3;
-        }
-        .button-operator {
-            background-color: #7f7fd5;
-            color: white;
-        }
-        .button-number {
-            background-color: #f7f7f7;
-        }
-        .button-equal {
-            background-color: #ffab73;
-            color: white;
+        .weather-info {
+            font-size: 16px;
+            margin-top: 10px;
         }
     </style>
 </head>
 <body>
-    <div id="calculator">
-        <input type="text" id="display" disabled>
-        <div>
-            <button class="button button-number" onclick="press(7)">7</button>
-            <button class="button button-number" onclick="press(8)">8</button>
-            <button class="button button-number" onclick="press(9)">9</button>
-            <button class="button button-operator" onclick="press('+')">+</button>
-        </div>
-        <div>
-            <button class="button button-number" onclick="press(4)">4</button>
-            <button class="button button-number" onclick="press(5)">5</button>
-            <button class="button button-number" onclick="press(6)">6</button>
-            <button class="button button-operator" onclick="press('-')">-</button>
-        </div>
-        <div>
-            <button class="button button-number" onclick="press(1)">1</button>
-            <button class="button button-number" onclick="press(2)">2</button>
-            <button class="button button-number" onclick="press(3)">3</button>
-            <button class="button button-operator" onclick="press('*')">*</button>
-        </div>
-        <div>
-            <button class="button button-number" onclick="press(0)">0</button>
-            <button class="button button-operator" onclick="press('/')">/</button>
-            <button class="button button-equal" onclick="calculate()">=</button>
-            <button class="button button-operator" onclick="clearDisplay()">C</button>
+    <div class="weather-card">
+        <h2 id="city-name">City Name</h2>
+        <img id="weather-icon" class="weather-icon" src="" alt="Weather Icon">
+        <div class="weather-info">
+            <p id="temperature">Temperature: --°C</p>
+            <p id="humidity">Humidity: --%</p>
         </div>
     </div>
 
     <script>
-        let displayValue = "";
+        document.addEventListener('DOMContentLoaded', function() {
+            const cityName = document.getElementById('city-name');
+            const weatherIcon = document.getElementById('weather-icon');
+            const temperature = document.getElementById('temperature');
+            const humidity = document.getElementById('humidity');
 
-        function press(value) {
-            displayValue += value;
-            document.getElementById('display').value = displayValue;
-        }
+            // Sample data, replace with API call
+            const weatherData = {
+                city: "San Francisco",
+                temp: 20,
+                icon: "https://openweathermap.org/img/wn/01d.png",
+                humidity: 68
+            };
 
-        function calculate() {
-            try {
-                displayValue = eval(displayValue).toString();
-            } catch {
-                displayValue = "Error";
-            }
-            document.getElementById('display').value = displayValue;
-        }
-
-        function clearDisplay() {
-            displayValue = "";
-            document.getElementById('display').value = displayValue;
-        }
+            cityName.textContent = weatherData.city;
+            temperature.textContent = `Temperature: ${weatherData.temp}°C`;
+            weatherIcon.src = weatherData.icon;
+            weatherIcon.alt = "Weather Icon";
+            humidity.textContent = `Humidity: ${weatherData.humidity}%`;
+        });
     </script>
 </body>
 </html>
