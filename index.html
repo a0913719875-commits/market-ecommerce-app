@@ -1,71 +1,110 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>貨幣換算機</title>
+    <title>Calculator</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            background-color: #1e1e1e;
-            color: #ffffff;
             display: flex;
-            align-items: center;
             justify-content: center;
+            align-items: center;
             height: 100vh;
+            background-color: #f0f0f5;
             margin: 0;
         }
-        #converter {
-            background-color: #2c2c2c;
+        .calculator {
+            border: 1px solid #ccc;
+            border-radius: 5px;
             padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-            text-align: center;
+            background-color: white;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
         }
-        input[type="number"] {
-            width: 80%;
-            padding: 10px;
-            margin: 10px 0;
+        .display {
+            width: 100%;
+            height: 40px;
+            margin-bottom: 10px;
+            font-size: 1.5em;
+            text-align: right;
+            padding-right: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+        .button-container {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+        }
+        .button {
+            padding: 15px;
+            font-size: 1.2em;
             border: none;
-            border-radius: 4px;
-            font-size: 16px;
+            border-radius: 5px;
+            background-color: #e7e7e7;
+            cursor: pointer;
+            transition: background-color 0.3s;
         }
-        .result {
-            margin: 10px 0;
-            font-size: 18px;
+        .button:hover {
+            background-color: #d0d0d5;
+        }
+        .button.operation {
+            background-color: #ff9500;
+            color: white;
+        }
+        .button.operation:hover {
+            background-color: #e58e00;
+        }
+        .button.equals {
+            background-color: #4caf50;
+            color: white;
+        }
+        .button.equals:hover {
+            background-color: #45a049;
         }
     </style>
 </head>
 <body>
-    <div id="converter">
-        <h1>貨幣換算機</h1>
-        <input type="number" id="twdInput" placeholder="輸入台幣" oninput="convertCurrency()">
-        <div class="result" id="usdResult">美金: $0</div>
-        <div class="result" id="jpyResult">日幣: ¥0</div>
-        <div class="result" id="eurResult">歐元: €0</div>
+    <div class="calculator">
+        <input type="text" class="display" id="display" disabled>
+        <div class="button-container">
+            <button class="button" onclick="clearDisplay()">C</button>
+            <button class="button" onclick="appendToDisplay('7')">7</button>
+            <button class="button" onclick="appendToDisplay('8')">8</button>
+            <button class="button" onclick="appendToDisplay('9')">9</button>
+            <button class="button operation" onclick="appendToDisplay('/')">/</button>
+            <button class="button" onclick="appendToDisplay('4')">4</button>
+            <button class="button" onclick="appendToDisplay('5')">5</button>
+            <button class="button" onclick="appendToDisplay('6')">6</button>
+            <button class="button operation" onclick="appendToDisplay('*')">*</button>
+            <button class="button" onclick="appendToDisplay('1')">1</button>
+            <button class="button" onclick="appendToDisplay('2')">2</button>
+            <button class="button" onclick="appendToDisplay('3')">3</button>
+            <button class="button operation" onclick="appendToDisplay('-')">-</button>
+            <button class="button" onclick="appendToDisplay('0')">0</button>
+            <button class="button" onclick="appendToDisplay('.')">.</button>
+            <button class="button operation" onclick="performCalculation()">=</button>
+            <button class="button operation" onclick="appendToDisplay('+')">+</button>
+        </div>
     </div>
-
     <script>
-        function convertCurrency() {
-            const twd = parseFloat(document.getElementById('twdInput').value);
-            if (isNaN(twd)) {
-                document.getElementById('usdResult').textContent = '美金: $0';
-                document.getElementById('jpyResult').textContent = '日幣: ¥0';
-                document.getElementById('eurResult').textContent = '歐元: €0';
-                return;
+        function clearDisplay() {
+            document.getElementById('display').value = '';
+        }
+
+        function appendToDisplay(value) {
+            document.getElementById('display').value += value;
+        }
+
+        function performCalculation() {
+            try {
+                let display = document.getElementById('display');
+                display.value = eval(display.value);
+            } catch (error) {
+                alert('Invalid calculation');
+                clearDisplay();
             }
-            
-            const usdRate = 0.032; // 1 TWD = 0.032 USD
-            const jpyRate = 3.58;  // 1 TWD = 3.58 JPY
-            const eurRate = 0.029; // 1 TWD = 0.029 EUR
-
-            const usd = (twd * usdRate).toFixed(2);
-            const jpy = (twd * jpyRate).toFixed(2);
-            const eur = (twd * eurRate).toFixed(2);
-
-            document.getElementById('usdResult').textContent = `美金: $${usd}`;
-            document.getElementById('jpyResult').textContent = `日幣: ¥${jpy}`;
-            document.getElementById('eurResult').textContent = `歐元: €${eur}`;
         }
     </script>
 </body>
