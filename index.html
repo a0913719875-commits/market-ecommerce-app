@@ -3,53 +3,91 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Weather Card</title>
+    <title>數字記憶遊戲</title>
     <style>
         body {
-            margin: 0;
+            background-color: #121212;
+            color: #FFFFFF;
+            font-family: Arial, sans-serif;
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
-            background-color: #1c1c1c;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
         }
-        .weather-card {
-            background: linear-gradient(145deg, #242424, #1a1a1a);
-            border-radius: 20px;
-            box-shadow: 5px 5px 10px #141414, -5px -5px 10px #262626;
-            color: #fff;
-            padding: 20px;
-            width: 300px;
+        #game-container {
             text-align: center;
         }
-        .weather-icon {
-            font-size: 64px;
-            margin-bottom: 10px;
+        #number-display {
+            font-size: 3em;
+            margin-bottom: 20px;
         }
-        .temperature {
-            font-size: 52px;
-            margin: 10px 0;
+        #input-field {
+            padding: 10px;
+            font-size: 1em;
+            width: 150px;
+            margin-bottom: 20px;
         }
-        .humidity {
-            font-size: 18px;
-            margin-top: 10px;
+        #start-game, #submit-answer {
+            padding: 10px 20px;
+            font-size: 1em;
+            color: #ffffff;
+            background-color: #BB86FC;
+            border: none;
+            cursor: pointer;
         }
-        .weather-description {
-            font-size: 24px;
-            margin-top: 10px;
-            color: #aaa;
+        #result {
+            margin-top: 20px;
+            font-size: 1.2em;
         }
     </style>
 </head>
 <body>
+    <div id="game-container">
+        <div id="number-display"></div>
+        <input type="text" id="input-field" placeholder="輸入記憶的數字">
+        <br>
+        <button id="start-game">開始遊戲</button>
+        <button id="submit-answer" style="display:none;">提交答案</button>
+        <div id="result"></div>
+    </div>
+    <script>
+        const numberDisplay = document.getElementById('number-display');
+        const inputField = document.getElementById('input-field');
+        const startGameButton = document.getElementById('start-game');
+        const submitAnswerButton = document.getElementById('submit-answer');
+        const resultDisplay = document.getElementById('result');
+        let generatedNumber = '';
 
-<div class="weather-card">
-    <div class="weather-icon">🌥️</div>
-    <div class="temperature">15°C</div>
-    <div class="weather-description">Cloudy</div>
-    <div class="humidity">Humidity: 68%</div>
-</div>
+        function getRandomNumber() {
+            return Math.floor(1000 + Math.random() * 9000).toString(); // 生成一個四位數隨機數字作為挑戰
+        }
 
+        startGameButton.addEventListener('click', () => {
+            generatedNumber = getRandomNumber();
+            numberDisplay.textContent = generatedNumber;
+            resultDisplay.textContent = '';
+            submitAnswerButton.style.display = 'block';
+            startGameButton.style.display = 'none';
+            
+            setTimeout(() => { // 延遲2秒後隱藏數字
+                numberDisplay.textContent = '';
+            }, 2000);
+        });
+
+        submitAnswerButton.addEventListener('click', () => {
+            const userAnswer = inputField.value;
+            if (userAnswer === generatedNumber) {
+                resultDisplay.textContent = '正確！';
+                resultDisplay.style.color = 'lightgreen';
+            } else {
+                resultDisplay.textContent = '錯誤，正確的數字是：' + generatedNumber;
+                resultDisplay.style.color = 'red';
+            }
+            inputField.value = '';
+            submitAnswerButton.style.display = 'none';
+            startGameButton.style.display = 'block';
+        });
+    </script>
 </body>
 </html>
