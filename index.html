@@ -3,83 +3,97 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>番茄鐘計時器</title>
+    <title>Stopwatch</title>
     <style>
         body {
+            background-color: #121212;
+            color: #ffffff;
             font-family: Arial, sans-serif;
             display: flex;
-            align-items: center;
             justify-content: center;
+            align-items: center;
             height: 100vh;
             margin: 0;
-            background-color: #f4f4f4;
         }
-        #timer {
-            font-size: 48px;
+        .stopwatch {
+            text-align: center;
+        }
+        .time-display {
+            font-size: 3em;
             margin-bottom: 20px;
         }
-        button {
-            font-size: 20px;
-            margin: 5px;
+        .buttons {
+            display: flex;
+            gap: 10px;
+        }
+        .button {
+            background-color: #1f1f1f;
+            color: #ffffff;
+            border: none;
             padding: 10px 20px;
             cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.2s;
+        }
+        .button:hover {
+            background-color: #333333;
         }
     </style>
 </head>
 <body>
-    <div>
-        <div id="timer">25:00</div>
-        <div>
-            <button id="startPauseButton">開始</button>
-            <button id="resetButton">重置</button>
+    <div class="stopwatch">
+        <div class="time-display" id="time-display">00:00:00</div>
+        <div class="buttons">
+            <button class="button" id="start">Start</button>
+            <button class="button" id="pause">Pause</button>
+            <button class="button" id="reset">Reset</button>
         </div>
     </div>
-
     <script>
-        let timer;
-        let isRunning = false;
-        let isWorkTime = true;
-        let remainingTime = 25 * 60;
-        
-        const timerDisplay = document.getElementById('timer');
-        const startPauseButton = document.getElementById('startPauseButton');
-        const resetButton = document.getElementById('resetButton');
+        let startTime, updatedTime, difference, tInterval, running = 0;
 
-        startPauseButton.addEventListener('click', () => {
-            if (isRunning) {
-                clearInterval(timer);
-                startPauseButton.textContent = '開始';
-            } else {
-                startTimer();
-                startPauseButton.textContent = '暫停';
+        const timeDisplay = document.getElementById('time-display');
+        const startButton = document.getElementById('start');
+        const pauseButton = document.getElementById('pause');
+        const resetButton = document.getElementById('reset');
+
+        startButton.onclick = function() {
+            if (!running) {
+                startTime = new Date().getTime();
+                tInterval = setInterval(updateTime, 1);
+                running = 1;
             }
-            isRunning = !isRunning;
-        });
+        };
 
-        resetButton.addEventListener('click', () => {
-            clearInterval(timer);
-            isRunning = false;
-            isWorkTime = true;
-            remainingTime = 25 * 60;
-            updateDisplay();
-            startPauseButton.textContent = '開始';
-        });
+        pauseButton.onclick = function() {
+            if (running) {
+                clearInterval(tInterval);
+                running = 0;
+            }
+        };
 
-        function startTimer() {
-            timer = setInterval(() => {
-                remainingTime--;
-                if (remainingTime < 0) {
-                    isWorkTime = !isWorkTime;
-                    remainingTime = (isWorkTime ? 25 : 5) * 60;
-                }
-                updateDisplay();
-            }, 1000);
-        }
+        resetButton.onclick = function() {
+            clearInterval(tInterval);
+            running = 0;
+            difference = 0;
+            timeDisplay.innerHTML = '00:00:00';
+        };
 
-        function updateDisplay() {
-            const minutes = Math.floor(remainingTime / 60).toString().padStart(2, '0');
-            const seconds = (remainingTime % 60).toString().padStart(2, '0');
-            timerDisplay.textContent = `${minutes}:${seconds}`;
+        function updateTime() {
+            updatedTime = new Date().getTime();
+            difference = updatedTime - startTime;
+
+            let hours = Math.floor((difference % 86400000) / 3600000);
+            let minutes = Math.floor((difference % 3600000) / 60000);
+            let seconds = Math.floor((difference % 60000) / 1000);
+            let milliseconds = Math.floor((difference % 1000) / 10);
+
+            hours = (hours < 10) ? '0' + hours : hours;
+            minutes = (minutes < 10) ? '0' + minutes : minutes;
+            seconds = (seconds < 10) ? '0' + seconds : seconds;
+            milliseconds = (milliseconds < 10) ? '0' + milliseconds : milliseconds;
+
+            timeDisplay.innerHTML = `${minutes}:${seconds}:${milliseconds}`;
         }
     </script>
 </body>
