@@ -3,97 +3,126 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stopwatch</title>
+    <title>AI Task Management System</title>
     <style>
         body {
+            font-family: Arial, sans-serif;
             background-color: #121212;
             color: #ffffff;
-            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
-            margin: 0;
         }
-        .stopwatch {
+        .container {
+            width: 400px;
+            background-color: #1e1e1e;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+        h1 {
             text-align: center;
+            color: #00ffcb;
         }
-        .time-display {
-            font-size: 3em;
+        .task-input {
+            display: flex;
             margin-bottom: 20px;
         }
-        .buttons {
-            display: flex;
-            gap: 10px;
-        }
-        .button {
-            background-color: #1f1f1f;
-            color: #ffffff;
+        .task-input input {
+            flex: 1;
+            padding: 10px;
             border: none;
-            padding: 10px 20px;
-            cursor: pointer;
-            font-size: 1em;
-            transition: background-color 0.2s;
+            border-radius: 4px;
+            margin-right: 5px;
         }
-        .button:hover {
-            background-color: #333333;
+        .task-input button {
+            padding: 10px;
+            border: none;
+            background-color: #00ffcb;
+            color: #1e1e1e;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .task-input button:hover {
+            background-color: #02e0b4;
+        }
+        ul {
+            padding: 0;
+            list-style: none;
+        }
+        li {
+            background-color: #252525;
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .task {
+            color: #ffffff;
+        }
+        .completed {
+            text-decoration: line-through;
+            color: #7f7f7f;
+        }
+        .progress {
+            margin-top: 20px;
+            text-align: center;
+            color: #7f7f7f;
         }
     </style>
 </head>
 <body>
-    <div class="stopwatch">
-        <div class="time-display" id="time-display">00:00:00</div>
-        <div class="buttons">
-            <button class="button" id="start">Start</button>
-            <button class="button" id="pause">Pause</button>
-            <button class="button" id="reset">Reset</button>
+    <div class="container">
+        <h1>Task Manager</h1>
+        <div class="task-input">
+            <input type="text" id="taskInput" placeholder="Add a new task">
+            <button onclick="addTask()">Add</button>
         </div>
+        <ul id="taskList"></ul>
+        <div class="progress" id="progress">Progress: 0%</div>
     </div>
     <script>
-        let startTime, updatedTime, difference, tInterval, running = 0;
+        const taskList = document.getElementById('taskList');
+        const progress = document.getElementById('progress');
+        let tasks = [];
+        let completedTasks = 0;
 
-        const timeDisplay = document.getElementById('time-display');
-        const startButton = document.getElementById('start');
-        const pauseButton = document.getElementById('pause');
-        const resetButton = document.getElementById('reset');
-
-        startButton.onclick = function() {
-            if (!running) {
-                startTime = new Date().getTime();
-                tInterval = setInterval(updateTime, 1);
-                running = 1;
+        function addTask() {
+            const taskInput = document.getElementById('taskInput');
+            const taskText = taskInput.value.trim();
+            if (taskText) {
+                tasks.push({ text: taskText, completed: false });
+                taskInput.value = '';
+                renderTasks();
             }
-        };
+        }
 
-        pauseButton.onclick = function() {
-            if (running) {
-                clearInterval(tInterval);
-                running = 0;
-            }
-        };
+        function toggleTask(index) {
+            tasks[index].completed = !tasks[index].completed;
+            completedTasks = tasks.filter(task => task.completed).length;
+            renderTasks();
+        }
 
-        resetButton.onclick = function() {
-            clearInterval(tInterval);
-            running = 0;
-            difference = 0;
-            timeDisplay.innerHTML = '00:00:00';
-        };
+        function renderTasks() {
+            taskList.innerHTML = '';
+            tasks.forEach((task, index) => {
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <span class="task ${task.completed ? 'completed' : ''}" onclick="toggleTask(${index})">${task.text}</span>
+                `;
+                taskList.appendChild(li);
+            });
+            updateProgress();
+        }
 
-        function updateTime() {
-            updatedTime = new Date().getTime();
-            difference = updatedTime - startTime;
-
-            let hours = Math.floor((difference % 86400000) / 3600000);
-            let minutes = Math.floor((difference % 3600000) / 60000);
-            let seconds = Math.floor((difference % 60000) / 1000);
-            let milliseconds = Math.floor((difference % 1000) / 10);
-
-            hours = (hours < 10) ? '0' + hours : hours;
-            minutes = (minutes < 10) ? '0' + minutes : minutes;
-            seconds = (seconds < 10) ? '0' + seconds : seconds;
-            milliseconds = (milliseconds < 10) ? '0' + milliseconds : milliseconds;
-
-            timeDisplay.innerHTML = `${minutes}:${seconds}:${milliseconds}`;
+        function updateProgress() {
+            const progressPercentage = tasks.length ? Math.round((completedTasks / tasks.length) * 100) : 0;
+            progress.textContent = `Progress: ${progressPercentage}%`;
         }
     </script>
 </body>
