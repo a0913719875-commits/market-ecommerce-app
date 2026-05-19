@@ -3,71 +3,82 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Weather Card</title>
+    <title>BMI 計算機</title>
     <style>
         body {
+            font-family: Arial, sans-serif;
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
             margin: 0;
-            font-family: Arial, sans-serif;
-            background-color: #f0f4f8;
+            background-color: #f4f7f8;
         }
-        .weather-card {
-            background: #fff;
-            border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        .bmi-calculator {
+            background-color: #fff;
             padding: 20px;
-            width: 300px;
-            text-align: center;
-            color: #333;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
         }
-        .weather-card h2 {
-            margin: 0 0 10px;
+        input {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            box-sizing: border-box;
+            border-radius: 5px;
+            border: 1px solid #ddd;
         }
-        .weather-icon {
-            width: 100px;
-            height: 100px;
-            margin: 10px auto;
-        }
-        .weather-info {
+        button {
+            width: 100%;
+            padding: 10px;
+            background-color: #28a745;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
             font-size: 16px;
-            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #218838;
+        }
+        .result {
+            margin-top: 20px;
+            font-size: 18px;
         }
     </style>
 </head>
 <body>
-    <div class="weather-card">
-        <h2 id="city-name">City Name</h2>
-        <img id="weather-icon" class="weather-icon" src="" alt="Weather Icon">
-        <div class="weather-info">
-            <p id="temperature">Temperature: --°C</p>
-            <p id="humidity">Humidity: --%</p>
-        </div>
+    <div class="bmi-calculator">
+        <h2>BMI 計算機</h2>
+        <input type="number" id="height" placeholder="身高 (厘米)" required>
+        <input type="number" id="weight" placeholder="體重 (公斤)" required>
+        <button onclick="calculateBMI()">計算 BMI</button>
+        <div class="result" id="result"></div>
     </div>
-
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const cityName = document.getElementById('city-name');
-            const weatherIcon = document.getElementById('weather-icon');
-            const temperature = document.getElementById('temperature');
-            const humidity = document.getElementById('humidity');
+        function calculateBMI() {
+            const height = parseFloat(document.getElementById('height').value) / 100;
+            const weight = parseFloat(document.getElementById('weight').value);
+            let resultText = '';
 
-            // Sample data, replace with API call
-            const weatherData = {
-                city: "San Francisco",
-                temp: 20,
-                icon: "https://openweathermap.org/img/wn/01d.png",
-                humidity: 68
-            };
+            if (height > 0 && weight > 0) {
+                const bmi = weight / (height * height);
+                resultText = 'BMI 值: ' + bmi.toFixed(2) + ' - ';
+                if (bmi < 18.5) {
+                    resultText += '體重過輕';
+                } else if (bmi >= 18.5 && bmi < 24.9) {
+                    resultText += '正常體重';
+                } else if (bmi >= 25 && bmi < 29.9) {
+                    resultText += '體重過重';
+                } else {
+                    resultText += '肥胖';
+                }
+            } else {
+                resultText = '請輸入有效的身高和體重';
+            }
 
-            cityName.textContent = weatherData.city;
-            temperature.textContent = `Temperature: ${weatherData.temp}°C`;
-            weatherIcon.src = weatherData.icon;
-            weatherIcon.alt = "Weather Icon";
-            humidity.textContent = `Humidity: ${weatherData.humidity}%`;
-        });
+            document.getElementById('result').innerText = resultText;
+        }
     </script>
 </body>
 </html>
