@@ -137,14 +137,4 @@ jobs:
             -H "Content-Type: application/json" \
             -d "{\"action\":\"closed\",\"issue\":{\"number\":${ISSUE_NUM},\"title\":\"AI Issue #${ISSUE_NUM}\",\"html_url\":\"${ISSUE_URL}\",\"state\":\"closed\",\"closed_at\":\"${NOW}\",\"body\":\"LINE OA User: ${LINE_USER}\",\"labels\":[]},\"deploy_url\":\"${DEPLOY_URL}\"}" || true
 
-          # 直接推播 LINE（含網址）
-          if [ -n "$DEPLOY_URL" ]; then
-            MSG="✅ 開發完成！%0aIssue #${ISSUE_NUM}%0a%0a🌐 完成品網址：%0a${DEPLOY_URL}%0a%0a（若頁面未顯示請等 1-2 分鐘）"
-          else
-            MSG="✅ 開發完成！%0aIssue #${ISSUE_NUM}%0a🔗 ${ISSUE_URL}%0a%0aPR: ${PR_URL:-已建立}"
-          fi
-
-          curl -s -X POST "https://api.line.me/v2/bot/message/push" \
-            -H "Authorization: Bearer ${LINE_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d "{\"to\":\"${LINE_USER}\",\"messages\":[{\"type\":\"text\",\"text\":\"$(echo "$MSG" | sed 's/%0a/\\n/g')\"}]}" || true
+          # LINE 通知由 n8n webhook 統一處理，此處不再重複直推
