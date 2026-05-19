@@ -3,88 +3,108 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>倒數計時器</title>
+    <title>Calculator</title>
     <style>
         body {
+            font-family: Arial, sans-serif;
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
             margin: 0;
-            background-color: #222;
-            color: #fff;
-            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
         }
-        .container {
-            text-align: center;
+        #calculator {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
         }
-        input[type="number"] {
-            width: 60px;
-            padding: 5px;
-            margin: 0 10px;
-            font-size: 18px;
-            text-align: center;
-        }
-        button {
-            padding: 10px 20px;
-            margin-top: 20px;
-            font-size: 18px;
-            background-color: #555;
-            color: #fff;
+        #display {
+            width: 100%;
+            padding: 10px;
+            font-size: 24px;
             border: none;
+            text-align: right;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            background-color: #eae9f2;
+        }
+        .button {
+            width: 60px;
+            height: 40px;
+            margin: 5px;
+            font-size: 18px;
+            border: none;
+            border-radius: 4px;
             cursor: pointer;
+            transition: background-color 0.2s;
         }
-        button:hover {
-            background-color: #777;
+        .button:hover {
+            background-color: #d3d3d3;
         }
-        #timer {
-            font-size: 48px;
-            margin: 20px 0;
+        .button-operator {
+            background-color: #7f7fd5;
+            color: white;
+        }
+        .button-number {
+            background-color: #f7f7f7;
+        }
+        .button-equal {
+            background-color: #ffab73;
+            color: white;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>倒數計時器</h1>
-        <input type="number" id="minutes" placeholder="分鐘" min="0">
-        <div id="timer">00:00</div>
-        <button id="startPauseBtn">開始</button>
+    <div id="calculator">
+        <input type="text" id="display" disabled>
+        <div>
+            <button class="button button-number" onclick="press(7)">7</button>
+            <button class="button button-number" onclick="press(8)">8</button>
+            <button class="button button-number" onclick="press(9)">9</button>
+            <button class="button button-operator" onclick="press('+')">+</button>
+        </div>
+        <div>
+            <button class="button button-number" onclick="press(4)">4</button>
+            <button class="button button-number" onclick="press(5)">5</button>
+            <button class="button button-number" onclick="press(6)">6</button>
+            <button class="button button-operator" onclick="press('-')">-</button>
+        </div>
+        <div>
+            <button class="button button-number" onclick="press(1)">1</button>
+            <button class="button button-number" onclick="press(2)">2</button>
+            <button class="button button-number" onclick="press(3)">3</button>
+            <button class="button button-operator" onclick="press('*')">*</button>
+        </div>
+        <div>
+            <button class="button button-number" onclick="press(0)">0</button>
+            <button class="button button-operator" onclick="press('/')">/</button>
+            <button class="button button-equal" onclick="calculate()">=</button>
+            <button class="button button-operator" onclick="clearDisplay()">C</button>
+        </div>
     </div>
 
     <script>
-        let interval;
-        let isPaused = true;
-        let remainingSeconds = 0;
+        let displayValue = "";
 
-        document.getElementById('startPauseBtn').addEventListener('click', function() {
-            if (isPaused) {
-                const minutesInput = document.getElementById('minutes').value;
-                if (!interval) {
-                    const minutes = parseInt(minutesInput, 10) || 0;
-                    remainingSeconds = minutes * 60;
-                }
-                interval = setInterval(updateTimer, 1000);
-                this.textContent = '暫停';
-            } else {
-                clearInterval(interval);
-                interval = null;
-                this.textContent = '開始';
-            }
-            isPaused = !isPaused;
-        });
+        function press(value) {
+            displayValue += value;
+            document.getElementById('display').value = displayValue;
+        }
 
-        function updateTimer() {
-            if (remainingSeconds <= 0) {
-                clearInterval(interval);
-                document.getElementById('startPauseBtn').textContent = '開始';
-                isPaused = true;
-                interval = null;
-            } else {
-                remainingSeconds--;
-                const minutes = String(Math.floor(remainingSeconds / 60)).padStart(2, '0');
-                const seconds = String(remainingSeconds % 60).padStart(2, '0');
-                document.getElementById('timer').textContent = `${minutes}:${seconds}`;
+        function calculate() {
+            try {
+                displayValue = eval(displayValue).toString();
+            } catch {
+                displayValue = "Error";
             }
+            document.getElementById('display').value = displayValue;
+        }
+
+        function clearDisplay() {
+            displayValue = "";
+            document.getElementById('display').value = displayValue;
         }
     </script>
 </body>
