@@ -3,81 +3,83 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BMI 計算機</title>
+    <title>番茄鐘計時器</title>
     <style>
         body {
             font-family: Arial, sans-serif;
             display: flex;
-            justify-content: center;
             align-items: center;
+            justify-content: center;
             height: 100vh;
             margin: 0;
-            background-color: #f4f7f8;
+            background-color: #f4f4f4;
         }
-        .bmi-calculator {
-            background-color: #fff;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-        }
-        input {
-            width: 100%;
-            padding: 10px;
-            margin: 10px 0;
-            box-sizing: border-box;
-            border-radius: 5px;
-            border: 1px solid #ddd;
+        #timer {
+            font-size: 48px;
+            margin-bottom: 20px;
         }
         button {
-            width: 100%;
-            padding: 10px;
-            background-color: #28a745;
-            color: #fff;
-            border: none;
-            border-radius: 5px;
+            font-size: 20px;
+            margin: 5px;
+            padding: 10px 20px;
             cursor: pointer;
-            font-size: 16px;
-        }
-        button:hover {
-            background-color: #218838;
-        }
-        .result {
-            margin-top: 20px;
-            font-size: 18px;
         }
     </style>
 </head>
 <body>
-    <div class="bmi-calculator">
-        <h2>BMI 計算機</h2>
-        <input type="number" id="height" placeholder="身高 (厘米)" required>
-        <input type="number" id="weight" placeholder="體重 (公斤)" required>
-        <button onclick="calculateBMI()">計算 BMI</button>
-        <div class="result" id="result"></div>
+    <div>
+        <div id="timer">25:00</div>
+        <div>
+            <button id="startPauseButton">開始</button>
+            <button id="resetButton">重置</button>
+        </div>
     </div>
+
     <script>
-        function calculateBMI() {
-            const height = parseFloat(document.getElementById('height').value) / 100;
-            const weight = parseFloat(document.getElementById('weight').value);
-            let resultText = '';
+        let timer;
+        let isRunning = false;
+        let isWorkTime = true;
+        let remainingTime = 25 * 60;
+        
+        const timerDisplay = document.getElementById('timer');
+        const startPauseButton = document.getElementById('startPauseButton');
+        const resetButton = document.getElementById('resetButton');
 
-            if (height > 0 && weight > 0) {
-                const bmi = weight / (height * height);
-                resultText = 'BMI 值: ' + bmi.toFixed(2) + ' - ';
-                if (bmi < 18.5) {
-                    resultText += '體重過輕';
-                } else if (bmi >= 18.5 && bmi < 24.9) {
-                    resultText += '正常體重';
-                } else if (bmi >= 25 && bmi < 29.9) {
-                    resultText += '體重過重';
-                } else {
-                    resultText += '肥胖';
-                }
+        startPauseButton.addEventListener('click', () => {
+            if (isRunning) {
+                clearInterval(timer);
+                startPauseButton.textContent = '開始';
             } else {
-                resultText = '請輸入有效的身高和體重';
+                startTimer();
+                startPauseButton.textContent = '暫停';
             }
+            isRunning = !isRunning;
+        });
 
-            document.getElementById('result').innerText = resultText;
+        resetButton.addEventListener('click', () => {
+            clearInterval(timer);
+            isRunning = false;
+            isWorkTime = true;
+            remainingTime = 25 * 60;
+            updateDisplay();
+            startPauseButton.textContent = '開始';
+        });
+
+        function startTimer() {
+            timer = setInterval(() => {
+                remainingTime--;
+                if (remainingTime < 0) {
+                    isWorkTime = !isWorkTime;
+                    remainingTime = (isWorkTime ? 25 : 5) * 60;
+                }
+                updateDisplay();
+            }, 1000);
+        }
+
+        function updateDisplay() {
+            const minutes = Math.floor(remainingTime / 60).toString().padStart(2, '0');
+            const seconds = (remainingTime % 60).toString().padStart(2, '0');
+            timerDisplay.textContent = `${minutes}:${seconds}`;
         }
     </script>
 </body>
