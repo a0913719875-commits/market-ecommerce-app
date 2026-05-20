@@ -47,7 +47,7 @@ jobs:
       - name: 讀取 Issue 內容
         id: issue
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
         run: |
           TARGET_REPO="${{ inputs.target_repo }}"
           TARGET_REPO="${TARGET_REPO:-market-ecommerce-app}"
