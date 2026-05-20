@@ -1,35 +1,26 @@
-import os
-from google.cloud import secretmanager
-from cryptography.fernet import Fernet
+import asyncio
+from supabase_async import create_client, SupabaseAsyncClient
 
-# Initialize Secret Manager client
-def access_secret_version(project_id, secret_id, version_id):
-    client = secretmanager.SecretManagerServiceClient()
-    name = f"projects/{project_id}/secrets/{secret_id}/versions/{version_id}"
-    response = client.access_secret_version(name=name)
-    return response.payload.data.decode("UTF-8")
+SUPABASE_URL = 'https://your-supabase-url.supabase.co'
+SUPABASE_KEY = 'your-supabase-key'
 
-# Token rotation simulation
-def rotate_token(current_token):
-    # Example rotation logic
-    return Fernet.generate_key().decode()
+async def main():
+    supabase: SupabaseAsyncClient = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# Load Shioaji API token from Google Secret Manager
-def get_shioaji_api_token():
-    project_id = os.getenv('GCP_PROJECT_ID')
-    secret_id = os.getenv('SHIOAJI_API_SECRET_ID')
-    version_id = "latest"
-    return access_secret_version(project_id, secret_id, version_id)
+    data = {
+        'column1': 'value1',
+        'column2': 'value2'
+    }
 
-# Main function to demonstrate secure token handling
-def main():
-    # Obtain token securely
-    api_token = get_shioaji_api_token()
-    print("API Token fetched from Secret Manager:", api_token)
+    for attempt in range(3):  # Retry up to 3 times
+        try:
+            response = await supabase.table('your_table_name').insert(data).execute()
+            print(f"Insert success: {response}")
+            break
+        except Exception as e:
+            print(f"Attempt {attempt + 1} failed: {e}")
+            if attempt == 2:
+                raise
 
-    # Rotate token (for demonstration)
-    new_token = rotate_token(api_token)
-    print("New rotated token:", new_token)
-
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    asyncio.run(main())
