@@ -1,2 +1,6 @@
-google-cloud-secret-manager
-cryptography
+shioaji
+line-bot-sdk
+requests
+```
+
+Make sure that you replace `'YOUR_PERSON_ID'`, `'YOUR_PASSWORD'`, `'your_line_channel_access_token'`, and `'your_line_user_id'` with actual credentials and tokens that are applicable.
