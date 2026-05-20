@@ -35,6 +35,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+
+      - name: Checkout Target Repo (if different)
+        if: inputs.target_repo != '' && inputs.target_repo != 'market-ecommerce-app'
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          TARGET="${{ inputs.target_repo }}"
+          git clone https://x-access-token:${GH_TOKEN}@github.com/a0913719875-commits/${TARGET}.git /tmp/target_repo
+          echo "target_repo_path=/tmp/target_repo" >> $GITHUB_ENV
+          echo "target_repo_name=${TARGET}" >> $GITHUB_ENV
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -126,10 +138,13 @@ jobs:
       - name: 關閉 Issue
         if: success()
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
         run: |
+          TARGET_REPO="${{ inputs.target_repo }}"
+          TARGET_REPO="${TARGET_REPO:-market-ecommerce-app}"
           gh issue close ${{ inputs.issue_number }} \
-            --comment "✅ AI 開發完成！" \
+            --repo "a0913719875-commits/${TARGET_REPO}" \
+            --comment "✅ AI Company OS Codex 修復完成！" \
             --reason completed || true
 
       - name: 通知 n8n 完成（含網址）
