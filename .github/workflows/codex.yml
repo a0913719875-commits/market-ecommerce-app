@@ -17,6 +17,10 @@ on:
         description: 'customer_id-project_id (Phase 3 隔離)'
         required: false
         default: ''
+      target_repo:
+        description: '目標 Repo (market-ecommerce-app / tw-stock-ai)'
+        required: false
+        default: 'market-ecommerce-app'
 
 jobs:
   codex-develop:
@@ -45,8 +49,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          BODY=$(gh issue view ${{ inputs.issue_number }} --json body -q '.body')
-          TITLE=$(gh issue view ${{ inputs.issue_number }} --json title -q '.title')
+          TARGET_REPO="${{ inputs.target_repo }}"
+          TARGET_REPO="${TARGET_REPO:-market-ecommerce-app}"
+          BODY=$(gh issue view ${{ inputs.issue_number }} --repo "a0913719875-commits/${TARGET_REPO}" --json body -q '.body')
+          TITLE=$(gh issue view ${{ inputs.issue_number }} --repo "a0913719875-commits/${TARGET_REPO}" --json title -q '.title')
           echo "body<<EOF" >> $GITHUB_OUTPUT
           echo "$BODY" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
