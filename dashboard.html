@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AI Company OS — 監控看板</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#0a0a0f;color:#e0e0ff;font-family:'Segoe UI',sans-serif;min-height:100vh}
@@ -94,6 +95,12 @@ body{background:#0a0a0f;color:#e0e0ff;font-family:'Segoe UI',sans-serif;min-heig
     </table>
   </div>
 </div>
+<div style="padding:0 20px 80px">
+  <div class="section">
+    <h2>成功率趨勢 (最近 10 次)</h2>
+    <canvas id="successChart" height="120"></canvas>
+  </div>
+</div>
 <button class="refresh" onclick="loadData()">🔄 更新</button>
 <script>
 const SUPA = 'https://kpbfhjjzpqoftsvfccuu.supabase.co';
@@ -145,6 +152,7 @@ async function loadData() {
   const ok = codexRuns.filter(r=>r.conclusion==='success').length;
   document.getElementById('total-projects').textContent = codexRuns.length;
   document.getElementById('success-rate').textContent = codexRuns.length ? Math.round(ok/codexRuns.length*100)+'%' : '-';
+  updateChart(runs);
   document.getElementById('runs-body').innerHTML = runs.slice(0,6).map(r=>
     `<tr><td>#${r.run_number}</td><td>${(r.name||'').substring(0,14)}</td><td>${badge(r.conclusion||r.status)}</td><td>${time(r.created_at)}</td></tr>`
   ).join('')||'<tr><td colspan="4" style="color:#444;text-align:center">無資料</td></tr>';
@@ -167,6 +175,36 @@ async function loadData() {
     projs.map(p=>`<tr><td>${(p.project_id||'').substring(0,28)}</td><td>${(p.requirement||'-').substring(0,28)}</td><td>${badge(p.status)}</td><td>${time(p.created_at)}</td></tr>`).join('') :
     '<tr><td colspan="4" style="color:#444;text-align:center">尚無專案記錄</td></tr>';
 }
+let chart = null;
+
+function updateChart(runs) {
+  const ctx = document.getElementById('successChart').getContext('2d');
+  const labels = runs.slice(0,10).reverse().map(r => '#'+r.run_number);
+  const data = runs.slice(0,10).reverse().map(r => r.conclusion==='success'?1:0);
+  if (chart) chart.destroy();
+  chart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: '執行結果 (1=成功)',
+        data,
+        backgroundColor: data.map(d => d ? 'rgba(0,204,102,0.6)' : 'rgba(204,68,68,0.6)'),
+        borderColor: data.map(d => d ? '#00cc66' : '#cc4444'),
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { labels: { color: '#888' } } },
+      scales: {
+        x: { ticks: { color: '#666' }, grid: { color: '#1a1a2e' } },
+        y: { ticks: { color: '#666', stepSize: 1 }, grid: { color: '#1a1a2e' }, min: 0, max: 1 }
+      }
+    }
+  });
+}
+
 loadData();
 setInterval(loadData,30000);
 </script>
