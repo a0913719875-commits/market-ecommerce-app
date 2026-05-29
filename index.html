@@ -3,91 +3,98 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>數字記憶遊戲</title>
+    <title>Pomodoro Timer</title>
     <style>
         body {
-            background-color: #121212;
-            color: #FFFFFF;
             font-family: Arial, sans-serif;
+            background-color: #2e2e2e;
+            color: #ffffff;
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
             margin: 0;
         }
-        #game-container {
+        #timer {
             text-align: center;
         }
-        #number-display {
-            font-size: 3em;
-            margin-bottom: 20px;
+        #time {
+            font-size: 4em;
+            margin: 20px 0;
         }
-        #input-field {
-            padding: 10px;
-            font-size: 1em;
-            width: 150px;
-            margin-bottom: 20px;
-        }
-        #start-game, #submit-answer {
+        button {
             padding: 10px 20px;
+            margin: 5px;
             font-size: 1em;
-            color: #ffffff;
-            background-color: #BB86FC;
             border: none;
+            background-color: #ff5252;
+            color: #ffffff;
             cursor: pointer;
+            border-radius: 5px;
         }
-        #result {
-            margin-top: 20px;
-            font-size: 1.2em;
+        button:active {
+            opacity: 0.7;
+        }
+        #mode {
+            padding: 5px 10px;
+            color: #ff5252;
         }
     </style>
 </head>
 <body>
-    <div id="game-container">
-        <div id="number-display"></div>
-        <input type="text" id="input-field" placeholder="輸入記憶的數字">
-        <br>
-        <button id="start-game">開始遊戲</button>
-        <button id="submit-answer" style="display:none;">提交答案</button>
-        <div id="result"></div>
+    <div id="timer">
+        <h1>Pomodoro Timer</h1>
+        <div id="mode">Work Mode</div>
+        <div id="time">25:00</div>
+        <button onclick="startTimer()">Start</button>
+        <button onclick="stopTimer()">Stop</button>
+        <button onclick="resetTimer()">Reset</button>
     </div>
     <script>
-        const numberDisplay = document.getElementById('number-display');
-        const inputField = document.getElementById('input-field');
-        const startGameButton = document.getElementById('start-game');
-        const submitAnswerButton = document.getElementById('submit-answer');
-        const resultDisplay = document.getElementById('result');
-        let generatedNumber = '';
+        let isRunning = false;
+        let isWorkMode = true;
+        let timerInterval;
+        let remainingTime = 25 * 60;
 
-        function getRandomNumber() {
-            return Math.floor(1000 + Math.random() * 9000).toString(); // 生成一個四位數隨機數字作為挑戰
+        function updateDisplay() {
+            let minutes = Math.floor(remainingTime / 60);
+            let seconds = remainingTime % 60;
+            document.getElementById('time').textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            document.getElementById('mode').textContent = isWorkMode ? "Work Mode" : "Break Mode";
         }
 
-        startGameButton.addEventListener('click', () => {
-            generatedNumber = getRandomNumber();
-            numberDisplay.textContent = generatedNumber;
-            resultDisplay.textContent = '';
-            submitAnswerButton.style.display = 'block';
-            startGameButton.style.display = 'none';
-            
-            setTimeout(() => { // 延遲2秒後隱藏數字
-                numberDisplay.textContent = '';
-            }, 2000);
-        });
+        function startTimer() {
+            if (isRunning) return;
+            isRunning = true;
+            timerInterval = setInterval(() => {
+                remainingTime--;
+                updateDisplay();
+                if (remainingTime <= 0) {
+                    switchMode();
+                }
+            }, 1000);
+        }
 
-        submitAnswerButton.addEventListener('click', () => {
-            const userAnswer = inputField.value;
-            if (userAnswer === generatedNumber) {
-                resultDisplay.textContent = '正確！';
-                resultDisplay.style.color = 'lightgreen';
-            } else {
-                resultDisplay.textContent = '錯誤，正確的數字是：' + generatedNumber;
-                resultDisplay.style.color = 'red';
-            }
-            inputField.value = '';
-            submitAnswerButton.style.display = 'none';
-            startGameButton.style.display = 'block';
-        });
+        function stopTimer() {
+            isRunning = false;
+            clearInterval(timerInterval);
+        }
+
+        function resetTimer() {
+            stopTimer();
+            remainingTime = isWorkMode ? 25 * 60 : 5 * 60;
+            updateDisplay();
+        }
+
+        function switchMode() {
+            stopTimer();
+            isWorkMode = !isWorkMode;
+            remainingTime = isWorkMode ? 25 * 60 : 5 * 60;
+            updateDisplay();
+            startTimer();
+        }
+
+        window.onload = updateDisplay;
     </script>
 </body>
 </html>
