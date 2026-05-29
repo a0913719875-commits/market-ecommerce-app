@@ -1,4 +1,4 @@
-name: Codex 自動開發 v2.0
+name: Codex 自動開發 v3.0
 
 on:
   workflow_dispatch:
@@ -45,7 +45,14 @@ jobs:
         run: |
           TARGET="${{ inputs.target_repo }}"
           git clone https://x-access-token:${GH_TOKEN}@github.com/a0913719875-commits/${TARGET}.git /tmp/target_repo
-          echo "target_repo_name=${TARGET}" >> $GITHUB_ENV
+
+      - name: GCP Auth (for Cloud Run deploy)
+        if: secrets.GCP_SA_KEY != ''
+        run: |
+          echo '${{ secrets.GCP_SA_KEY }}' > /tmp/gcp-key.json
+          gcloud auth activate-service-account --key-file=/tmp/gcp-key.json --quiet 2>/dev/null || true
+          gcloud config set project ${{ secrets.GCP_PROJECT }} --quiet 2>/dev/null || true
+          echo "GCP_AUTH=true" >> $GITHUB_ENV
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -73,9 +80,17 @@ jobs:
         id: snapshot
         continue-on-error: true
         run: |
-          CURRENT_SHA=$(git rev-parse HEAD 2>/dev/null || echo "")
-          echo "before_sha=$CURRENT_SHA" >> $GITHUB_OUTPUT
-          echo "Snapshot: $CURRENT_SHA"
+          echo "before_sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          if [ "$GCP_AUTH" = "true" ]; then
+            PROJECT_ID="${{ inputs.project_id }}"
+            SERVICE_NAME=$(echo "${PROJECT_ID:-default}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | cut -c1-48)
+            SERVICE_NAME="${SERVICE_NAME}-api"
+            PREV_REV=$(gcloud run services describe $SERVICE_NAME \
+              --region=${{ secrets.GCP_REGION }} \
+              --format="value(status.latestReadyRevisionName)" 2>/dev/null || echo "")
+            echo "prev_revision=$PREV_REV" >> $GITHUB_OUTPUT
+            echo "cloud_run_service=$SERVICE_NAME" >> $GITHUB_OUTPUT
+          fi
 
       - name: AI 自動開發
         env:
@@ -88,7 +103,7 @@ jobs:
           CUSTOMER_ID: ${{ inputs.project_id }}
         run: python scripts/ai_develop.py
 
-      - name: AI QA — 執行自動測試
+      - name: AI QA — 執行測試
         id: qa
         continue-on-error: true
         run: |
@@ -96,13 +111,12 @@ jobs:
             pip install pytest httpx -q
             python -m pytest tests/ -v --tb=short 2>&1 | tail -10
             echo "qa_type=pytest" >> $GITHUB_OUTPUT
-          elif [ -f "tests/test_ui.py" ]; then
-            echo "qa_type=playwright" >> $GITHUB_OUTPUT
           else
             echo "qa_type=none" >> $GITHUB_OUTPUT
           fi
 
-      - name: 提交靜態網站到 main
+      # ─── 靜態網站：push main → GitHub Pages ──────────────
+      - name: 部署靜態網站
         id: static_push
         if: hashFiles('index.html') != '' && hashFiles('Dockerfile') == ''
         env:
@@ -114,79 +128,16 @@ jobs:
           if git diff --cached --quiet; then
             echo "no_changes=true" >> $GITHUB_OUTPUT
           else
-            PROJECT_ID="${{ inputs.project_id }}"
             git commit -m "feat[${PROJECT_ID:-issue-${{ inputs.issue_number }}}]: 靜態網站"
             git pull --rebase origin main || true
             git push origin HEAD:main
             echo "pushed_to_main=true" >> $GITHUB_OUTPUT
           fi
-
-      - name: 建立後端 PR
-        id: backend_pr
-        if: hashFiles('Dockerfile') != ''
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
-        run: |
-          git config user.name "AI Company OS Bot"
-          git config user.email "ai@company-os.com"
-          BRANCH="ai/backend-${{ inputs.issue_number }}"
-          git checkout -b $BRANCH
-          git add -A
-          if ! git diff --cached --quiet; then
-            git commit -m "feat: AI 後端 Issue #${{ inputs.issue_number }}"
-            git push --force-with-lease origin $BRANCH || git push origin $BRANCH
-            PR_URL=$(gh pr create \
-              --title "AI Issue #${{ inputs.issue_number }}" \
-              --body "Issue: ${{ inputs.issue_url }}" \
-              --base main --head $BRANCH)
-            echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
-            echo "has_backend=true" >> $GITHUB_OUTPUT
-            PR_NUM=$(echo $PR_URL | grep -o '[0-9]*$')
-            echo "pr_num=$PR_NUM" >> $GITHUB_OUTPUT
-          fi
-
-      - name: AI PR 審查 + Auto-merge
-        if: steps.backend_pr.outputs.pr_num != ''
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: |
-          PR_NUM="${{ steps.backend_pr.outputs.pr_num }}"
-          DIFF=$(gh pr diff $PR_NUM --patch 2>/dev/null | head -80 || echo "No diff")
-
-          python3 - << 'PYEOF'
-import json, urllib.request, os, sys
-diff = open('/dev/stdin').read() if not sys.stdin.isatty() else ""
-diff = """${DIFF}"""[:1500]
-key = os.environ.get('OPENAI_API_KEY','')
-if not key:
-    print('{"approve":true,"reason":"no key"}')
-    sys.exit(0)
-req = urllib.request.Request(
-    'https://api.openai.com/v1/chat/completions',
-    data=json.dumps({'model':'gpt-4o-mini','max_tokens':100,'messages':[
-        {'role':'system','content':'Code reviewer. Reply JSON only: {"approve":true/false,"reason":"short reason"}'},
-        {'role':'user','content':'Review: '+diff}
-    ]}).encode(),
-    headers={'Authorization':'Bearer '+key,'Content-Type':'application/json'},
-    method='POST'
-)
-try:
-    with urllib.request.urlopen(req,timeout=15) as r:
-        result = json.loads(json.loads(r.read())['choices'][0]['message']['content'])
-        print(json.dumps(result))
-        approve = result.get('approve', True)
-except:
-    approve = True
-PYEOF
-
-          gh pr merge $PR_NUM --squash --auto 2>/dev/null || \
-            gh pr merge $PR_NUM --squash 2>/dev/null || true
-          echo "PR #$PR_NUM reviewed and merged"
+          PROJECT_ID: ${{ inputs.project_id }}
 
       - name: GitHub Pages 部署
-        id: deploy
+        id: pages_deploy
         if: steps.static_push.outputs.pushed_to_main == 'true'
         env:
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
@@ -197,29 +148,124 @@ PYEOF
           OWNER=$(echo "${{ github.repository }}" | cut -d'/' -f1)
           PAGE_URL="https://${OWNER}.github.io/${REPO_NAME}/"
           echo "page_url=$PAGE_URL" >> $GITHUB_OUTPUT
-          echo "Deployed: $PAGE_URL"
 
-      - name: Rollback — 部署失敗自動恢復
+      # ─── 後端：建立 Docker + 部署獨立 Cloud Run ──────────
+      - name: 建立後端 Docker 映像
+        id: docker_build
+        if: hashFiles('Dockerfile') != '' && env.GCP_AUTH == 'true'
+        run: |
+          PROJECT_ID="${{ inputs.project_id }}"
+          ISSUE_NUM="${{ inputs.issue_number }}"
+          SERVICE_NAME=$(echo "${PROJECT_ID:-issue-${ISSUE_NUM}}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | cut -c1-48)
+          SERVICE_NAME="${SERVICE_NAME}-api"
+          IMAGE="${{ secrets.GCP_REGISTRY }}/${SERVICE_NAME}:latest"
+
+          gcloud auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev --quiet 2>/dev/null || true
+          docker build -t $IMAGE . 2>&1 | tail -5
+          docker push $IMAGE 2>&1 | tail -3
+          echo "image=$IMAGE" >> $GITHUB_OUTPUT
+          echo "service_name=$SERVICE_NAME" >> $GITHUB_OUTPUT
+          echo "Docker build: $IMAGE"
+
+      - name: 部署到獨立 Cloud Run (#9 Phase 3)
+        id: cloud_run_deploy
+        if: steps.docker_build.outputs.image != ''
+        run: |
+          IMAGE="${{ steps.docker_build.outputs.image }}"
+          SERVICE="${{ steps.docker_build.outputs.service_name }}"
+          REGION="${{ secrets.GCP_REGION }}"
+          PROJECT="${{ secrets.GCP_PROJECT }}"
+
+          gcloud run deploy $SERVICE \
+            --image=$IMAGE \
+            --region=$REGION \
+            --project=$PROJECT \
+            --allow-unauthenticated \
+            --port=8080 \
+            --memory=512Mi \
+            --max-instances=3 \
+            --quiet 2>&1 | tail -5
+
+          SERVICE_URL=$(gcloud run services describe $SERVICE \
+            --region=$REGION --project=$PROJECT \
+            --format="value(status.url)" 2>/dev/null || echo "")
+          echo "service_url=$SERVICE_URL" >> $GITHUB_OUTPUT
+          echo "Deployed: $SERVICE_URL"
+
+      # ─── #6 Cloud Run Revision Rollback ──────────────────
+      - name: Cloud Run Rollback — 健康檢查
+        id: health_check
+        if: steps.cloud_run_deploy.outputs.service_url != ''
+        continue-on-error: true
+        run: |
+          SERVICE_URL="${{ steps.cloud_run_deploy.outputs.service_url }}"
+          sleep 10
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${SERVICE_URL}/health" --max-time 15 || echo "000")
+          echo "health_status=$STATUS" >> $GITHUB_OUTPUT
+          if [ "$STATUS" != "200" ]; then
+            echo "health_failed=true" >> $GITHUB_OUTPUT
+            echo "Health check failed: HTTP $STATUS"
+          else
+            echo "Health check OK: HTTP $STATUS"
+          fi
+
+      - name: Cloud Run Rollback — 自動切換舊版本
+        if: steps.health_check.outputs.health_failed == 'true' && steps.snapshot.outputs.prev_revision != ''
+        run: |
+          SERVICE="${{ steps.snapshot.outputs.cloud_run_service }}"
+          PREV="${{ steps.snapshot.outputs.prev_revision }}"
+          REGION="${{ secrets.GCP_REGION }}"
+          PROJECT="${{ secrets.GCP_PROJECT }}"
+
+          echo "Rolling back to $PREV..."
+          gcloud run services update-traffic $SERVICE \
+            --to-revisions=$PREV=100 \
+            --region=$REGION \
+            --project=$PROJECT \
+            --quiet 2>&1 || true
+          echo "Cloud Run rollback complete"
+
+      # ─── 後端 PR 流程（無 GCP 時）──────────────────────
+      - name: 建立後端 PR (無 GCP)
+        id: backend_pr
+        if: hashFiles('Dockerfile') != '' && env.GCP_AUTH != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "AI Company OS Bot"
+          git config user.email "ai@company-os.com"
+          BRANCH="ai/backend-${{ inputs.issue_number }}"
+          git checkout -b $BRANCH
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "feat: AI backend Issue #${{ inputs.issue_number }}"
+            git push --force-with-lease origin $BRANCH || git push origin $BRANCH
+            PR_NUM=$(gh pr create --title "AI Issue #${{ inputs.issue_number }}" \
+              --body "Issue: ${{ inputs.issue_url }}" --base main --head $BRANCH \
+              --json number -q '.number' 2>/dev/null || echo "")
+            if [ -n "$PR_NUM" ]; then
+              gh pr merge $PR_NUM --squash --auto 2>/dev/null || true
+            fi
+          fi
+
+      # ─── Rollback — GitHub Pages ─────────────────────────
+      - name: Rollback — GitHub Pages 自動恢復
         if: failure() && steps.snapshot.outputs.before_sha != ''
         env:
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
           LINE_TOKEN: ${{ secrets.LINE_CHANNEL_TOKEN }}
         run: |
           BEFORE="${{ steps.snapshot.outputs.before_sha }}"
-          echo "Deployment failed. Rolling back to $BEFORE..."
           git config user.name "AI Rollback Bot"
           git config user.email "rollback@ai-company-os.com"
-          git revert --no-edit HEAD 2>/dev/null || \
-            git checkout $BEFORE -- . 2>/dev/null || true
+          git revert --no-edit HEAD 2>/dev/null || git checkout $BEFORE -- . 2>/dev/null || true
           git add -A
-          git diff --cached --quiet || \
-            git commit -m "rollback: 自動還原至 ${BEFORE:0:8}"
+          git diff --cached --quiet || git commit -m "rollback: 還原至 ${BEFORE:0:8}"
           git push origin HEAD:main 2>/dev/null || true
-          echo "Rollback complete"
           curl -s -X POST "https://api.line.me/v2/bot/message/push" \
             -H "Authorization: Bearer ${LINE_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d '{"to":"U9f200ef6c095c25edd6aa44cd927fa1b","messages":[{"type":"text","text":"Rollback 自動執行\n\n部署失敗已還原至上一版本\nCTO AI 正在分析原因..."}]}' || true
+            -d '{"to":"U9f200ef6c095c25edd6aa44cd927fa1b","messages":[{"type":"text","text":"Rollback 自動執行\n部署失敗已還原至上一版本"}]}' || true
 
       - name: 關閉 Issue
         if: success()
@@ -236,14 +282,14 @@ PYEOF
       - name: 通知 n8n
         if: always()
         env:
-          DEPLOY_URL: ${{ steps.deploy.outputs.page_url }}
+          DEPLOY_URL: ${{ steps.pages_deploy.outputs.page_url || steps.cloud_run_deploy.outputs.service_url }}
           LINE_TOKEN: ${{ secrets.LINE_CHANNEL_TOKEN }}
         run: |
-          NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           ISSUE_NUM="${{ inputs.issue_number }}"
           ISSUE_URL="${{ inputs.issue_url }}"
           FINAL_URL="${DEPLOY_URL:-}"
           LINE_USER="U9f200ef6c095c25edd6aa44cd927fa1b"
+          NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           curl -s -X POST https://ppplay.zeabur.app/webhook/github-issue-events \
             -H "Content-Type: application/json" \
             -d "{\"action\":\"closed\",\"issue\":{\"number\":${ISSUE_NUM},\"title\":\"AI Issue #${ISSUE_NUM}\",\"html_url\":\"${ISSUE_URL}\",\"state\":\"closed\",\"closed_at\":\"${NOW}\",\"body\":\"LINE OA User: ${LINE_USER}\",\"labels\":[]},\"deploy_url\":\"${FINAL_URL}\"}" || true
