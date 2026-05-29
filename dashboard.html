@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Company OS — 監控看板</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0f;color:#e0e0ff;font-family:'Segoe UI',sans-serif;min-height:100vh}
+.header{background:linear-gradient(135deg,#1a1a3d,#0d1a3d);padding:20px 30px;border-bottom:1px solid #333}
+.header h1{font-size:22px;color:#7c6cff}
+.header span{font-size:12px;color:#888;margin-left:10px}
+.status-bar{display:flex;gap:20px;padding:10px 30px;background:#111;border-bottom:1px solid #222;font-size:12px;flex-wrap:wrap}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:5px;vertical-align:middle}
+.green{background:#00ff88}.yellow{background:#ffcc00}.red{background:#ff4444}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:15px;padding:20px}
+@media(max-width:800px){.grid{grid-template-columns:repeat(2,1fr)}}
+.card{background:#111827;border:1px solid #1f2937;border-radius:12px;padding:20px}
+.card-title{font-size:11px;color:#666;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+.card-value{font-size:32px;font-weight:700;color:#7c6cff}
+.card-sub{font-size:12px;color:#888;margin-top:4px}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:15px;padding:0 20px 20px}
+@media(max-width:800px){.two-col{grid-template-columns:1fr}}
+.section{margin-bottom:20px}
+.section h2{font-size:12px;color:#555;margin-bottom:10px;text-transform:uppercase;letter-spacing:1px}
+.table{width:100%;border-collapse:collapse;font-size:13px}
+.table th{text-align:left;padding:8px 10px;background:#0d1117;color:#555;font-weight:500;font-size:11px;border-bottom:1px solid #1a1a2e}
+.table td{padding:8px 10px;border-bottom:1px solid #0d1117;color:#bbb}
+.badge{padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500;display:inline-block}
+.ok{background:#0d2d1a;color:#00cc66}
+.pending{background:#2d2d0d;color:#ccaa00}
+.fail{background:#2d0d0d;color:#cc4444}
+.cost-bar{height:4px;background:#1a1a2e;border-radius:2px;margin-top:8px;overflow:hidden}
+.cost-fill{height:100%;background:linear-gradient(90deg,#7c6cff,#00d4ff);border-radius:2px;transition:.5s}
+.refresh{position:fixed;bottom:20px;right:20px;background:#7c6cff;color:white;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-size:13px;box-shadow:0 4px 15px rgba(124,108,255,.4)}
+.refresh:hover{background:#6c5cf0}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>🏢 AI Company OS <span id="last-update">載入中...</span></h1>
+</div>
+<div class="status-bar">
+  <span><span class="dot green"></span>n8n 工作流</span>
+  <span><span class="dot" id="cr-dot"></span><span id="cr-text">Cloud Run 檢查中</span></span>
+  <span><span class="dot green"></span>GitHub Pages</span>
+  <span><span class="dot green"></span>Supabase</span>
+</div>
+<div class="grid">
+  <div class="card">
+    <div class="card-title">客戶總數</div>
+    <div class="card-value" id="total-customers">-</div>
+    <div class="card-sub">已登記用戶</div>
+  </div>
+  <div class="card">
+    <div class="card-title">本月開發次數</div>
+    <div class="card-value" id="total-projects">-</div>
+    <div class="card-sub">Codex Actions runs</div>
+  </div>
+  <div class="card">
+    <div class="card-title">成功率</div>
+    <div class="card-value" id="success-rate">-</div>
+    <div class="card-sub">部署成功比率</div>
+  </div>
+  <div class="card">
+    <div class="card-title">本月 AI 成本</div>
+    <div class="card-value" id="total-cost">-</div>
+    <div class="card-sub">USD 預估</div>
+    <div class="cost-bar"><div class="cost-fill" id="cost-bar" style="width:0%"></div></div>
+  </div>
+</div>
+<div class="two-col">
+  <div class="section">
+    <h2>最近 GitHub Actions</h2>
+    <table class="table">
+      <thead><tr><th>Run</th><th>工作流</th><th>狀態</th><th>時間</th></tr></thead>
+      <tbody id="runs-body"><tr><td colspan="4" style="color:#444;text-align:center;padding:20px">載入中...</td></tr></tbody>
+    </table>
+  </div>
+  <div class="section">
+    <h2>客戶方案 (Supabase)</h2>
+    <table class="table">
+      <thead><tr><th>客戶</th><th>方案</th><th>用量</th><th>上限</th></tr></thead>
+      <tbody id="users-body"><tr><td colspan="4" style="color:#444;text-align:center;padding:20px">載入中...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+<div style="padding:0 20px 20px">
+  <div class="section">
+    <h2>專案記錄 (Supabase)</h2>
+    <table class="table">
+      <thead><tr><th>專案 ID</th><th>需求</th><th>狀態</th><th>時間</th></tr></thead>
+      <tbody id="projects-body"><tr><td colspan="4" style="color:#444;text-align:center;padding:20px">載入中...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+<button class="refresh" onclick="loadData()">🔄 更新</button>
+<script>
+const SUPA = 'https://kpbfhjjzpqoftsvfccuu.supabase.co';
+const SKEY = localStorage.getItem('sb_key') || '';
+const GH = 'https://api.github.com/repos/a0913719875-commits/market-ecommerce-app';
+const GKEY = '';  // Public repo - no auth needed for public endpoints
+
+async function sb(path) {
+  try {
+    const r = await fetch(SUPA+path,{headers:{apikey:SKEY,Authorization:'Bearer '+SKEY}});
+    return await r.json();
+  } catch(e){return[];}
+}
+async function gh(path) {
+  try {
+    const r = await fetch(GH+path,{headers:{Authorization:'Bearer '+GKEY}});
+    return await r.json();
+  } catch(e){return{};}
+}
+function badge(s){
+  if(s==='success'||s==='completed')return'<span class="badge ok">成功</span>';
+  if(s==='failure'||s==='failed')return'<span class="badge fail">失敗</span>';
+  return'<span class="badge pending">'+(s||'進行中')+'</span>';
+}
+function time(t){
+  if(!t)return'-';
+  return new Date(t).toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+}
+
+async function loadData() {
+  document.getElementById('last-update').textContent = '更新：'+new Date().toLocaleTimeString('zh-TW');
+
+  // Cloud Run
+  try {
+    const h = await fetch('https://multi-agent-dev-team-827577239332.asia-east1.run.app/health');
+    const d = document.getElementById('cr-dot');
+    const t = document.getElementById('cr-text');
+    if(h.ok){d.className='dot green';t.textContent='Cloud Run 7 AI 正常';}
+    else{d.className='dot red';t.textContent='Cloud Run 異常';}
+  } catch {
+    document.getElementById('cr-dot').className='dot yellow';
+    document.getElementById('cr-text').textContent='Cloud Run 冷啟動';
+  }
+
+  // GitHub Actions
+  const runsData = await gh('/actions/runs?per_page=10');
+  const runs = runsData.workflow_runs||[];
+  const codexRuns = runs.filter(r=>r.name&&r.name.includes('Codex'));
+  const ok = codexRuns.filter(r=>r.conclusion==='success').length;
+  document.getElementById('total-projects').textContent = codexRuns.length;
+  document.getElementById('success-rate').textContent = codexRuns.length ? Math.round(ok/codexRuns.length*100)+'%' : '-';
+  document.getElementById('runs-body').innerHTML = runs.slice(0,6).map(r=>
+    `<tr><td>#${r.run_number}</td><td>${(r.name||'').substring(0,14)}</td><td>${badge(r.conclusion||r.status)}</td><td>${time(r.created_at)}</td></tr>`
+  ).join('')||'<tr><td colspan="4" style="color:#444;text-align:center">無資料</td></tr>';
+
+  // Cost
+  const cost = (codexRuns.length*0.08+0.5).toFixed(2);
+  document.getElementById('total-cost').textContent = '$'+cost;
+  document.getElementById('cost-bar').style.width = Math.min(parseFloat(cost)/10*100,100)+'%';
+
+  // Supabase users
+  const users = await sb('/rest/v1/ai_company_users?select=*');
+  document.getElementById('total-customers').textContent = users.length;
+  document.getElementById('users-body').innerHTML = users.length ?
+    users.map(u=>`<tr><td>${(u.customer_id||u.line_user_id||'').substring(0,12)}</td><td>${u.plan||'free'}</td><td>${u.monthly_usage||0}</td><td>${u.monthly_limit||20}</td></tr>`).join('') :
+    '<tr><td colspan="4" style="color:#444;text-align:center">無資料</td></tr>';
+
+  // Supabase projects
+  const projs = await sb('/rest/v1/ai_company_projects?select=*&order=created_at.desc&limit=5');
+  document.getElementById('projects-body').innerHTML = projs.length ?
+    projs.map(p=>`<tr><td>${(p.project_id||'').substring(0,28)}</td><td>${(p.requirement||'-').substring(0,28)}</td><td>${badge(p.status)}</td><td>${time(p.created_at)}</td></tr>`).join('') :
+    '<tr><td colspan="4" style="color:#444;text-align:center">尚無專案記錄</td></tr>';
+}
+loadData();
+setInterval(loadData,30000);
+</script>
+</body>
+</html>
