@@ -46,14 +46,6 @@ jobs:
           TARGET="${{ inputs.target_repo }}"
           git clone https://x-access-token:${GH_TOKEN}@github.com/a0913719875-commits/${TARGET}.git /tmp/target_repo
 
-      - name: GCP Auth (for Cloud Run deploy)
-        if: secrets.GCP_SA_KEY != ''
-        run: |
-          echo '${{ secrets.GCP_SA_KEY }}' > /tmp/gcp-key.json
-          gcloud auth activate-service-account --key-file=/tmp/gcp-key.json --quiet 2>/dev/null || true
-          gcloud config set project ${{ secrets.GCP_PROJECT }} --quiet 2>/dev/null || true
-          echo "GCP_AUTH=true" >> $GITHUB_ENV
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -76,21 +68,11 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
           echo "title=$TITLE" >> $GITHUB_OUTPUT
 
-      - name: Rollback — 記錄目前版本
+      - name: Rollback 快照
         id: snapshot
         continue-on-error: true
         run: |
           echo "before_sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
-          if [ "$GCP_AUTH" = "true" ]; then
-            PROJECT_ID="${{ inputs.project_id }}"
-            SERVICE_NAME=$(echo "${PROJECT_ID:-default}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | cut -c1-48)
-            SERVICE_NAME="${SERVICE_NAME}-api"
-            PREV_REV=$(gcloud run services describe $SERVICE_NAME \
-              --region=${{ secrets.GCP_REGION }} \
-              --format="value(status.latestReadyRevisionName)" 2>/dev/null || echo "")
-            echo "prev_revision=$PREV_REV" >> $GITHUB_OUTPUT
-            echo "cloud_run_service=$SERVICE_NAME" >> $GITHUB_OUTPUT
-          fi
 
       - name: AI 自動開發
         env:
@@ -103,40 +85,36 @@ jobs:
           CUSTOMER_ID: ${{ inputs.project_id }}
         run: python scripts/ai_develop.py
 
-      - name: AI QA — 執行測試
+      - name: AI QA 測試
         id: qa
         continue-on-error: true
         run: |
           if [ -f "tests/test_api.py" ]; then
             pip install pytest httpx -q
-            python -m pytest tests/ -v --tb=short 2>&1 | tail -10
-            echo "qa_type=pytest" >> $GITHUB_OUTPUT
-          else
-            echo "qa_type=none" >> $GITHUB_OUTPUT
+            python -m pytest tests/ -v --tb=short 2>&1 | tail -8
           fi
 
-      # ─── 靜態網站：push main → GitHub Pages ──────────────
-      - name: 部署靜態網站
+      - name: 部署靜態網站到 main
         id: static_push
-        if: hashFiles('index.html') != '' && hashFiles('Dockerfile') == ''
         env:
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          PROJECT_ID: ${{ inputs.project_id }}
         run: |
           git config user.name "AI Company OS Bot"
           git config user.email "ai@company-os.com"
-          git add -A
-          if git diff --cached --quiet; then
-            echo "no_changes=true" >> $GITHUB_OUTPUT
-          else
-            git commit -m "feat[${PROJECT_ID:-issue-${{ inputs.issue_number }}}]: 靜態網站"
-            git pull --rebase origin main || true
-            git push origin HEAD:main
-            echo "pushed_to_main=true" >> $GITHUB_OUTPUT
+          if [ -f "index.html" ] && [ ! -f "Dockerfile" ]; then
+            git add -A
+            if git diff --cached --quiet; then
+              echo "no_changes=true" >> $GITHUB_OUTPUT
+            else
+              git commit -m "feat[${PROJECT_ID:-issue-${{ inputs.issue_number }}}]: AI auto-develop"
+              git pull --rebase origin main || true
+              git push origin HEAD:main
+              echo "pushed_to_main=true" >> $GITHUB_OUTPUT
+            fi
           fi
-        env:
-          PROJECT_ID: ${{ inputs.project_id }}
 
-      - name: GitHub Pages 部署
+      - name: GitHub Pages 設定
         id: pages_deploy
         if: steps.static_push.outputs.pushed_to_main == 'true'
         env:
@@ -144,91 +122,76 @@ jobs:
         run: |
           gh api repos/${{ github.repository }}/pages \
             -X POST --field source[branch]=main --field source[path]=/ 2>/dev/null || true
-          REPO_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f2)
           OWNER=$(echo "${{ github.repository }}" | cut -d'/' -f1)
-          PAGE_URL="https://${OWNER}.github.io/${REPO_NAME}/"
-          echo "page_url=$PAGE_URL" >> $GITHUB_OUTPUT
+          REPO=$(echo "${{ github.repository }}" | cut -d'/' -f2)
+          echo "page_url=https://${OWNER}.github.io/${REPO}/" >> $GITHUB_OUTPUT
 
-      # ─── 後端：建立 Docker + 部署獨立 Cloud Run ──────────
-      - name: 建立後端 Docker 映像
-        id: docker_build
-        if: hashFiles('Dockerfile') != '' && env.GCP_AUTH == 'true'
+      - name: GCP 認證 + Cloud Run 部署
+        id: cloud_deploy
+        if: hashFiles('Dockerfile') != ''
+        continue-on-error: true
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          GCP_PROJECT: ${{ secrets.GCP_PROJECT }}
+          GCP_REGION: ${{ secrets.GCP_REGION }}
+          GCP_REGISTRY: ${{ secrets.GCP_REGISTRY }}
         run: |
+          if [ -z "$GCP_SA_KEY" ]; then
+            echo "No GCP credentials, creating PR instead"
+            exit 0
+          fi
+          echo "$GCP_SA_KEY" > /tmp/gcp-key.json
+          gcloud auth activate-service-account --key-file=/tmp/gcp-key.json --quiet
+          gcloud config set project $GCP_PROJECT --quiet
+
           PROJECT_ID="${{ inputs.project_id }}"
-          ISSUE_NUM="${{ inputs.issue_number }}"
-          SERVICE_NAME=$(echo "${PROJECT_ID:-issue-${ISSUE_NUM}}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | cut -c1-48)
+          SERVICE_NAME=$(echo "${PROJECT_ID:-issue-${{ inputs.issue_number }}}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | cut -c1-48)
           SERVICE_NAME="${SERVICE_NAME}-api"
-          IMAGE="${{ secrets.GCP_REGISTRY }}/${SERVICE_NAME}:latest"
+          IMAGE="${GCP_REGISTRY}/${SERVICE_NAME}:latest"
 
-          gcloud auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev --quiet 2>/dev/null || true
-          docker build -t $IMAGE . 2>&1 | tail -5
-          docker push $IMAGE 2>&1 | tail -3
-          echo "image=$IMAGE" >> $GITHUB_OUTPUT
+          PREV_REV=$(gcloud run services describe $SERVICE_NAME --region=$GCP_REGION \
+            --format="value(status.latestReadyRevisionName)" 2>/dev/null || echo "")
+          echo "prev_revision=$PREV_REV" >> $GITHUB_OUTPUT
           echo "service_name=$SERVICE_NAME" >> $GITHUB_OUTPUT
-          echo "Docker build: $IMAGE"
 
-      - name: 部署到獨立 Cloud Run (#9 Phase 3)
-        id: cloud_run_deploy
-        if: steps.docker_build.outputs.image != ''
-        run: |
-          IMAGE="${{ steps.docker_build.outputs.image }}"
-          SERVICE="${{ steps.docker_build.outputs.service_name }}"
-          REGION="${{ secrets.GCP_REGION }}"
-          PROJECT="${{ secrets.GCP_PROJECT }}"
+          gcloud auth configure-docker ${GCP_REGION}-docker.pkg.dev --quiet
+          docker build -t $IMAGE . 2>&1 | tail -3
+          docker push $IMAGE 2>&1 | tail -2
 
-          gcloud run deploy $SERVICE \
-            --image=$IMAGE \
-            --region=$REGION \
-            --project=$PROJECT \
-            --allow-unauthenticated \
-            --port=8080 \
-            --memory=512Mi \
-            --max-instances=3 \
-            --quiet 2>&1 | tail -5
+          gcloud run deploy $SERVICE_NAME \
+            --image=$IMAGE --region=$GCP_REGION --project=$GCP_PROJECT \
+            --allow-unauthenticated --port=8080 --memory=512Mi --max-instances=3 --quiet 2>&1 | tail -3
 
-          SERVICE_URL=$(gcloud run services describe $SERVICE \
-            --region=$REGION --project=$PROJECT \
-            --format="value(status.url)" 2>/dev/null || echo "")
+          SERVICE_URL=$(gcloud run services describe $SERVICE_NAME \
+            --region=$GCP_REGION --format="value(status.url)" 2>/dev/null || echo "")
           echo "service_url=$SERVICE_URL" >> $GITHUB_OUTPUT
           echo "Deployed: $SERVICE_URL"
 
-      # ─── #6 Cloud Run Revision Rollback ──────────────────
-      - name: Cloud Run Rollback — 健康檢查
-        id: health_check
-        if: steps.cloud_run_deploy.outputs.service_url != ''
+      - name: Cloud Run 健康檢查 + Rollback
+        if: steps.cloud_deploy.outputs.service_url != ''
         continue-on-error: true
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          GCP_PROJECT: ${{ secrets.GCP_PROJECT }}
+          GCP_REGION: ${{ secrets.GCP_REGION }}
         run: |
-          SERVICE_URL="${{ steps.cloud_run_deploy.outputs.service_url }}"
+          SERVICE_URL="${{ steps.cloud_deploy.outputs.service_url }}"
           sleep 10
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${SERVICE_URL}/health" --max-time 15 || echo "000")
-          echo "health_status=$STATUS" >> $GITHUB_OUTPUT
-          if [ "$STATUS" != "200" ]; then
-            echo "health_failed=true" >> $GITHUB_OUTPUT
-            echo "Health check failed: HTTP $STATUS"
-          else
-            echo "Health check OK: HTTP $STATUS"
+          echo "Health: $STATUS"
+          if [ "$STATUS" != "200" ] && [ -n "${{ steps.cloud_deploy.outputs.prev_revision }}" ]; then
+            SERVICE="${{ steps.cloud_deploy.outputs.service_name }}"
+            PREV="${{ steps.cloud_deploy.outputs.prev_revision }}"
+            echo "$GCP_SA_KEY" > /tmp/gcp-key.json
+            gcloud auth activate-service-account --key-file=/tmp/gcp-key.json --quiet
+            gcloud run services update-traffic $SERVICE \
+              --to-revisions=$PREV=100 --region=$GCP_REGION --quiet 2>&1
+            echo "Rolled back to $PREV"
           fi
 
-      - name: Cloud Run Rollback — 自動切換舊版本
-        if: steps.health_check.outputs.health_failed == 'true' && steps.snapshot.outputs.prev_revision != ''
-        run: |
-          SERVICE="${{ steps.snapshot.outputs.cloud_run_service }}"
-          PREV="${{ steps.snapshot.outputs.prev_revision }}"
-          REGION="${{ secrets.GCP_REGION }}"
-          PROJECT="${{ secrets.GCP_PROJECT }}"
-
-          echo "Rolling back to $PREV..."
-          gcloud run services update-traffic $SERVICE \
-            --to-revisions=$PREV=100 \
-            --region=$REGION \
-            --project=$PROJECT \
-            --quiet 2>&1 || true
-          echo "Cloud Run rollback complete"
-
-      # ─── 後端 PR 流程（無 GCP 時）──────────────────────
-      - name: 建立後端 PR (無 GCP)
+      - name: 後端 PR (無 GCP 憑證時)
         id: backend_pr
-        if: hashFiles('Dockerfile') != '' && env.GCP_AUTH != 'true'
+        if: hashFiles('Dockerfile') != '' && steps.cloud_deploy.outputs.service_url == ''
         env:
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
         run: |
@@ -240,16 +203,12 @@ jobs:
           if ! git diff --cached --quiet; then
             git commit -m "feat: AI backend Issue #${{ inputs.issue_number }}"
             git push --force-with-lease origin $BRANCH || git push origin $BRANCH
-            PR_NUM=$(gh pr create --title "AI Issue #${{ inputs.issue_number }}" \
+            gh pr create --title "AI Issue #${{ inputs.issue_number }}" \
               --body "Issue: ${{ inputs.issue_url }}" --base main --head $BRANCH \
-              --json number -q '.number' 2>/dev/null || echo "")
-            if [ -n "$PR_NUM" ]; then
-              gh pr merge $PR_NUM --squash --auto 2>/dev/null || true
-            fi
+              --json number -q '.number' 2>/dev/null | xargs -I{} gh pr merge {} --squash --auto 2>/dev/null || true
           fi
 
-      # ─── Rollback — GitHub Pages ─────────────────────────
-      - name: Rollback — GitHub Pages 自動恢復
+      - name: Pages Rollback (失敗時)
         if: failure() && steps.snapshot.outputs.before_sha != ''
         env:
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
@@ -260,12 +219,12 @@ jobs:
           git config user.email "rollback@ai-company-os.com"
           git revert --no-edit HEAD 2>/dev/null || git checkout $BEFORE -- . 2>/dev/null || true
           git add -A
-          git diff --cached --quiet || git commit -m "rollback: 還原至 ${BEFORE:0:8}"
+          git diff --cached --quiet || git commit -m "rollback: revert to ${BEFORE:0:8}"
           git push origin HEAD:main 2>/dev/null || true
           curl -s -X POST "https://api.line.me/v2/bot/message/push" \
             -H "Authorization: Bearer ${LINE_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d '{"to":"U9f200ef6c095c25edd6aa44cd927fa1b","messages":[{"type":"text","text":"Rollback 自動執行\n部署失敗已還原至上一版本"}]}' || true
+            -d '{"to":"U9f200ef6c095c25edd6aa44cd927fa1b","messages":[{"type":"text","text":"Rollback auto-executed. Deployment failed and reverted."}]}' || true
 
       - name: 關閉 Issue
         if: success()
@@ -276,13 +235,13 @@ jobs:
           TARGET_REPO="${TARGET_REPO:-market-ecommerce-app}"
           gh issue close ${{ inputs.issue_number }} \
             --repo "a0913719875-commits/${TARGET_REPO}" \
-            --comment "AI Company OS Codex 完成！" \
+            --comment "AI Company OS Codex v3.0 complete!" \
             --reason completed || true
 
       - name: 通知 n8n
         if: always()
         env:
-          DEPLOY_URL: ${{ steps.pages_deploy.outputs.page_url || steps.cloud_run_deploy.outputs.service_url }}
+          DEPLOY_URL: ${{ steps.pages_deploy.outputs.page_url || steps.cloud_deploy.outputs.service_url }}
           LINE_TOKEN: ${{ secrets.LINE_CHANNEL_TOKEN }}
         run: |
           ISSUE_NUM="${{ inputs.issue_number }}"
