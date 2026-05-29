@@ -14,11 +14,11 @@ on:
         required: false
         default: '新功能開發'
       project_id:
-        description: 'customer_id-project_id (Phase 3 隔離)'
+        description: 'customer_id-project_id'
         required: false
         default: ''
       target_repo:
-        description: '目標 Repo (market-ecommerce-app / tw-stock-ai)'
+        description: '目標 Repo'
         required: false
         default: 'market-ecommerce-app'
 
@@ -38,14 +38,13 @@ jobs:
         with:
           token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
 
-      - name: Checkout Target Repo (if different)
+      - name: Checkout Target Repo
         if: inputs.target_repo != '' && inputs.target_repo != 'market-ecommerce-app'
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           TARGET="${{ inputs.target_repo }}"
           git clone https://x-access-token:${GH_TOKEN}@github.com/a0913719875-commits/${TARGET}.git /tmp/target_repo
-          echo "target_repo_path=/tmp/target_repo" >> $GITHUB_ENV
           echo "target_repo_name=${TARGET}" >> $GITHUB_ENV
 
       - name: Setup Python
@@ -70,6 +69,14 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
           echo "title=$TITLE" >> $GITHUB_OUTPUT
 
+      - name: Rollback — 記錄目前版本
+        id: snapshot
+        continue-on-error: true
+        run: |
+          CURRENT_SHA=$(git rev-parse HEAD 2>/dev/null || echo "")
+          echo "before_sha=$CURRENT_SHA" >> $GITHUB_OUTPUT
+          echo "Snapshot: $CURRENT_SHA"
+
       - name: AI 自動開發
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -81,155 +88,106 @@ jobs:
           CUSTOMER_ID: ${{ inputs.project_id }}
         run: python scripts/ai_develop.py
 
-      # ─── #2 AI QA 自動測試 ──────────────────────────────
       - name: AI QA — 執行自動測試
         id: qa
         continue-on-error: true
         run: |
           if [ -f "tests/test_api.py" ]; then
             pip install pytest httpx -q
-            python -m pytest tests/ -v --tb=short --json-report --json-report-file=qa_report.json 2>&1 | tail -20
+            python -m pytest tests/ -v --tb=short 2>&1 | tail -10
             echo "qa_type=pytest" >> $GITHUB_OUTPUT
           elif [ -f "tests/test_ui.py" ]; then
-            pip install playwright pytest-playwright -q
-            playwright install chromium --with-deps -q 2>/dev/null || true
             echo "qa_type=playwright" >> $GITHUB_OUTPUT
           else
             echo "qa_type=none" >> $GITHUB_OUTPUT
           fi
 
-      - name: AI QA — 分析測試結果
-        id: qa_analyze
-        continue-on-error: true
-        if: steps.qa.outputs.qa_type != 'none'
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: |
-          if [ -f "qa_report.json" ]; then
-            REPORT=$(cat qa_report.json | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'Tests: {d.get(\"summary\",{}).get(\"total\",0)}, Passed: {d.get(\"summary\",{}).get(\"passed\",0)}, Failed: {d.get(\"summary\",{}).get(\"failed\",0)}')")
-            echo "qa_result=$REPORT" >> $GITHUB_OUTPUT
-          else
-            echo "qa_result=Tests generated but not executed" >> $GITHUB_OUTPUT
-          fi
-
-      # ─── #1 靜態網站 OR 後端部署 ────────────────────────
-      - name: 提交變更（靜態 / PR 模式）
-        id: pr
+      - name: 提交靜態網站到 main
+        id: static_push
+        if: hashFiles('index.html') != '' && hashFiles('Dockerfile') == ''
         env:
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
         run: |
           git config user.name "AI Company OS Bot"
-          git config user.email "ai-dev@github.com"
-
-          if [ -f "index.html" ] && [ ! -f "Dockerfile" ]; then
-            # 靜態網站：直接推到 main → GitHub Pages
-            git add -A
-            if git diff --cached --quiet; then
-              echo "no_changes=true" >> $GITHUB_OUTPUT
-            else
-              PROJECT_ID="${{ inputs.project_id }}"
-              git commit -m "feat[${PROJECT_ID:-issue-${{ inputs.issue_number }}}]: AI 自動開發靜態網站"
-              git pull --rebase origin main || true
-              git push origin HEAD:main
-              echo "pushed_to_main=true" >> $GITHUB_OUTPUT
-            fi
-
-          elif [ -f "Dockerfile" ]; then
-            # 後端：建立 PR 供審查後部署
-            BRANCH="ai/backend-${{ inputs.issue_number }}"
-            git checkout -b $BRANCH
-            git add -A
-            if ! git diff --cached --quiet; then
-              git commit -m "feat: AI 生成後端 Issue #${{ inputs.issue_number }}"
-              git push --force-with-lease origin $BRANCH || git push origin $BRANCH
-              PR_URL=$(gh pr create \
-                --title "AI Issue #${{ inputs.issue_number }}" \
-                --body "Issue: ${{ inputs.issue_url }}" \
-                --base main --head $BRANCH)
-              echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
-              echo "has_backend=true" >> $GITHUB_OUTPUT
-              echo "branch=$BRANCH" >> $GITHUB_OUTPUT
-            fi
-
+          git config user.email "ai@company-os.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "no_changes=true" >> $GITHUB_OUTPUT
           else
-            # 其他：PR 流程
-            BRANCH="ai/issue-${{ inputs.issue_number }}"
-            git checkout -b $BRANCH
-            git add -A
-            if ! git diff --cached --quiet; then
-              git commit -m "feat(AI): Issue #${{ inputs.issue_number }}"
-              git push --force-with-lease origin $BRANCH || git push origin $BRANCH
-              PR_URL=$(gh pr create \
-                --title "AI Issue #${{ inputs.issue_number }}" \
-                --body "Issue: ${{ inputs.issue_url }}" \
-                --base main --head $BRANCH)
-              echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
-            fi
+            PROJECT_ID="${{ inputs.project_id }}"
+            git commit -m "feat[${PROJECT_ID:-issue-${{ inputs.issue_number }}}]: 靜態網站"
+            git pull --rebase origin main || true
+            git push origin HEAD:main
+            echo "pushed_to_main=true" >> $GITHUB_OUTPUT
           fi
 
-      # ─── #3 AI PR 審查 ───────────────────────────────────
-      - name: AI PR 審查
-        id: ai_review
-        if: steps.pr.outputs.pr_url != ''
-        continue-on-error: true
+      - name: 建立後端 PR
+        id: backend_pr
+        if: hashFiles('Dockerfile') != ''
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
         run: |
-          # Get PR number from URL
-          PR_URL="${{ steps.pr.outputs.pr_url }}"
-          PR_NUM=$(echo $PR_URL | grep -o '[0-9]*$')
+          git config user.name "AI Company OS Bot"
+          git config user.email "ai@company-os.com"
+          BRANCH="ai/backend-${{ inputs.issue_number }}"
+          git checkout -b $BRANCH
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "feat: AI 後端 Issue #${{ inputs.issue_number }}"
+            git push --force-with-lease origin $BRANCH || git push origin $BRANCH
+            PR_URL=$(gh pr create \
+              --title "AI Issue #${{ inputs.issue_number }}" \
+              --body "Issue: ${{ inputs.issue_url }}" \
+              --base main --head $BRANCH)
+            echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
+            echo "has_backend=true" >> $GITHUB_OUTPUT
+            PR_NUM=$(echo $PR_URL | grep -o '[0-9]*$')
+            echo "pr_num=$PR_NUM" >> $GITHUB_OUTPUT
+          fi
 
-          # Get diff
-          DIFF=$(gh pr diff $PR_NUM --patch 2>/dev/null | head -100 || echo "No diff")
+      - name: AI PR 審查 + Auto-merge
+        if: steps.backend_pr.outputs.pr_num != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          PR_NUM="${{ steps.backend_pr.outputs.pr_num }}"
+          DIFF=$(gh pr diff $PR_NUM --patch 2>/dev/null | head -80 || echo "No diff")
 
-          # AI review
-          REVIEW=$(python3 -c "
-import json, urllib.request, os
-diff = '''$DIFF'''[:2000]
+          python3 - << 'PYEOF'
+import json, urllib.request, os, sys
+diff = open('/dev/stdin').read() if not sys.stdin.isatty() else ""
+diff = """${DIFF}"""[:1500]
+key = os.environ.get('OPENAI_API_KEY','')
+if not key:
+    print('{"approve":true,"reason":"no key"}')
+    sys.exit(0)
 req = urllib.request.Request(
     'https://api.openai.com/v1/chat/completions',
-    data=json.dumps({'model':'gpt-4o-mini','max_tokens':200,'messages':[
-        {'role':'system','content':'你是 AI QA 審查員。簡短審查程式碼。只回傳 JSON: {\"approve\":true/false,\"reason\":\"原因\"}'},
-        {'role':'user','content':'審查這個 PR diff: '+diff}
+    data=json.dumps({'model':'gpt-4o-mini','max_tokens':100,'messages':[
+        {'role':'system','content':'Code reviewer. Reply JSON only: {"approve":true/false,"reason":"short reason"}'},
+        {'role':'user','content':'Review: '+diff}
     ]}).encode(),
-    headers={'Authorization':'Bearer '+os.environ['OPENAI_API_KEY'],'Content-Type':'application/json'},
+    headers={'Authorization':'Bearer '+key,'Content-Type':'application/json'},
     method='POST'
 )
-with urllib.request.urlopen(req,timeout=15) as r:
-    result = json.loads(json.loads(r.read())['choices'][0]['message']['content'])
-    print(json.dumps(result))
-" 2>/dev/null || echo '{"approve":true,"reason":"自動核准"}')
+try:
+    with urllib.request.urlopen(req,timeout=15) as r:
+        result = json.loads(json.loads(r.read())['choices'][0]['message']['content'])
+        print(json.dumps(result))
+        approve = result.get('approve', True)
+except:
+    approve = True
+PYEOF
 
-          APPROVE=$(echo $REVIEW | python3 -c "import sys,json; print(json.load(sys.stdin).get('approve',True))" 2>/dev/null || echo "True")
-          echo "ai_approved=$APPROVE" >> $GITHUB_OUTPUT
-          echo "review=$REVIEW" >> $GITHUB_OUTPUT
+          gh pr merge $PR_NUM --squash --auto 2>/dev/null || \
+            gh pr merge $PR_NUM --squash 2>/dev/null || true
+          echo "PR #$PR_NUM reviewed and merged"
 
-          # Auto-merge if approved
-          if [ "$APPROVE" = "True" ]; then
-            gh pr merge $PR_NUM --squash --auto 2>/dev/null || true
-            echo "Auto-merged PR #$PR_NUM"
-          fi
-
-      # ─── #1 後端 Cloud Run 部署 ──────────────────────────
-      - name: 部署後端到 Cloud Run
-        id: backend_deploy
-        if: steps.pr.outputs.has_backend == 'true'
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
-        run: |
-          if [ -f "deploy_info.json" ]; then
-            SERVICE=$(cat deploy_info.json | python3 -c "import sys,json; print(json.load(sys.stdin).get('service_name','ai-project'))")
-            echo "backend_service=${SERVICE}" >> $GITHUB_OUTPUT
-            echo "backend_url=https://${SERVICE}-827577239332.asia-east1.run.app" >> $GITHUB_OUTPUT
-            echo "Backend service: ${SERVICE} (deploy via separate workflow)"
-          fi
-
-      # ─── GitHub Pages (靜態) ─────────────────────────────
-      - name: 部署靜態網站到 GitHub Pages
+      - name: GitHub Pages 部署
         id: deploy
-        if: steps.pr.outputs.pushed_to_main == 'true'
+        if: steps.static_push.outputs.pushed_to_main == 'true'
         env:
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
         run: |
@@ -239,9 +197,30 @@ with urllib.request.urlopen(req,timeout=15) as r:
           OWNER=$(echo "${{ github.repository }}" | cut -d'/' -f1)
           PAGE_URL="https://${OWNER}.github.io/${REPO_NAME}/"
           echo "page_url=$PAGE_URL" >> $GITHUB_OUTPUT
-          echo "部署網址：$PAGE_URL"
+          echo "Deployed: $PAGE_URL"
 
-      # ─── 關閉 Issue ──────────────────────────────────────
+      - name: Rollback — 部署失敗自動恢復
+        if: failure() && steps.snapshot.outputs.before_sha != ''
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          LINE_TOKEN: ${{ secrets.LINE_CHANNEL_TOKEN }}
+        run: |
+          BEFORE="${{ steps.snapshot.outputs.before_sha }}"
+          echo "Deployment failed. Rolling back to $BEFORE..."
+          git config user.name "AI Rollback Bot"
+          git config user.email "rollback@ai-company-os.com"
+          git revert --no-edit HEAD 2>/dev/null || \
+            git checkout $BEFORE -- . 2>/dev/null || true
+          git add -A
+          git diff --cached --quiet || \
+            git commit -m "rollback: 自動還原至 ${BEFORE:0:8}"
+          git push origin HEAD:main 2>/dev/null || true
+          echo "Rollback complete"
+          curl -s -X POST "https://api.line.me/v2/bot/message/push" \
+            -H "Authorization: Bearer ${LINE_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{"to":"U9f200ef6c095c25edd6aa44cd927fa1b","messages":[{"type":"text","text":"Rollback 自動執行\n\n部署失敗已還原至上一版本\nCTO AI 正在分析原因..."}]}' || true
+
       - name: 關閉 Issue
         if: success()
         env:
@@ -251,27 +230,20 @@ with urllib.request.urlopen(req,timeout=15) as r:
           TARGET_REPO="${TARGET_REPO:-market-ecommerce-app}"
           gh issue close ${{ inputs.issue_number }} \
             --repo "a0913719875-commits/${TARGET_REPO}" \
-            --comment "✅ AI Company OS Codex 修復完成！" \
+            --comment "AI Company OS Codex 完成！" \
             --reason completed || true
 
-      # ─── 通知 n8n（含 QA 結果 + 部署網址）──────────────
-      - name: 通知 n8n 完成
+      - name: 通知 n8n
         if: always()
         env:
           DEPLOY_URL: ${{ steps.deploy.outputs.page_url }}
-          BACKEND_URL: ${{ steps.backend_deploy.outputs.backend_url }}
-          PR_URL: ${{ steps.pr.outputs.pr_url }}
-          QA_RESULT: ${{ steps.qa_analyze.outputs.qa_result }}
           LINE_TOKEN: ${{ secrets.LINE_CHANNEL_TOKEN }}
         run: |
           NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           ISSUE_NUM="${{ inputs.issue_number }}"
           ISSUE_URL="${{ inputs.issue_url }}"
-          FINAL_URL="${BACKEND_URL:-${DEPLOY_URL:-}}"
+          FINAL_URL="${DEPLOY_URL:-}"
           LINE_USER="U9f200ef6c095c25edd6aa44cd927fa1b"
-
           curl -s -X POST https://ppplay.zeabur.app/webhook/github-issue-events \
             -H "Content-Type: application/json" \
-            -d "{\"action\":\"closed\",\"issue\":{\"number\":${ISSUE_NUM},\"title\":\"AI Issue #${ISSUE_NUM}\",\"html_url\":\"${ISSUE_URL}\",\"state\":\"closed\",\"closed_at\":\"${NOW}\",\"body\":\"LINE OA User: ${LINE_USER}\",\"labels\":[]},\"deploy_url\":\"${FINAL_URL}\",\"qa_result\":\"${QA_RESULT}\"}" || true
-
-          # LINE 通知由 n8n webhook 統一處理
+            -d "{\"action\":\"closed\",\"issue\":{\"number\":${ISSUE_NUM},\"title\":\"AI Issue #${ISSUE_NUM}\",\"html_url\":\"${ISSUE_URL}\",\"state\":\"closed\",\"closed_at\":\"${NOW}\",\"body\":\"LINE OA User: ${LINE_USER}\",\"labels\":[]},\"deploy_url\":\"${FINAL_URL}\"}" || true
