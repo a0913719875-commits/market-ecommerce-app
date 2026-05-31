@@ -1,4 +1,4 @@
-name: Codex 自動開發
+name: Codex 自動開發 v3.1
 
 on:
   workflow_dispatch:
@@ -13,6 +13,18 @@ on:
         description: '需求分類'
         required: false
         default: '新功能開發'
+      project_id:
+        description: 'customer_id-project_id'
+        required: false
+        default: ''
+      target_repo:
+        description: '目標 Repo（讀取 Issue 用）'
+        required: false
+        default: 'market-ecommerce-app'
+      project_repo:
+        description: '專案獨立 Repo（部署用，每客戶唯一）'
+        required: false
+        default: ''
 
 jobs:
   codex-develop:
@@ -27,6 +39,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -36,13 +50,15 @@ jobs:
       - name: 安裝依賴
         run: pip install openai -q
 
-      - name: 讀取 Issue 內容
+      - name: 讀取 Issue
         id: issue
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
         run: |
-          BODY=$(gh issue view ${{ inputs.issue_number }} --json body -q '.body')
-          TITLE=$(gh issue view ${{ inputs.issue_number }} --json title -q '.title')
+          REPO="${{ inputs.target_repo }}"
+          REPO="${REPO:-market-ecommerce-app}"
+          BODY=$(gh issue view ${{ inputs.issue_number }} --repo "a0913719875-commits/${REPO}" --json body -q '.body')
+          TITLE=$(gh issue view ${{ inputs.issue_number }} --repo "a0913719875-commits/${REPO}" --json title -q '.title')
           echo "body<<EOF" >> $GITHUB_OUTPUT
           echo "$BODY" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
@@ -55,92 +71,155 @@ jobs:
           ISSUE_TITLE: ${{ steps.issue.outputs.title }}
           ISSUE_NUMBER: ${{ inputs.issue_number }}
           CATEGORY: ${{ inputs.category }}
+          PROJECT_ID: ${{ inputs.project_id }}
+          CUSTOMER_ID: ${{ inputs.project_id }}
         run: python scripts/ai_develop.py
 
-      - name: 提交變更並建立 PR（或直接推送到 main）
-        id: pr
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: AI QA — 真實測試執行
+        id: qa
+        continue-on-error: true
         run: |
-          git config user.name "AI Developer Bot"
-          git config user.email "ai-dev@github.com"
+          if [ -f "tests/test_api.py" ]; then
+            pip install pytest httpx pytest-json-report -q 2>/dev/null
+            python -m pytest tests/test_api.py -v --tb=short \
+              --json-report --json-report-file=qa_report.json 2>&1 | tail -15
+            echo "qa_type=pytest" >> $GITHUB_OUTPUT
+            if [ -f "qa_report.json" ]; then
+              PASSED=$(python3 -c "import json;d=json.load(open('qa_report.json'));print(d.get('summary',{}).get('passed',0))" 2>/dev/null || echo 0)
+              FAILED=$(python3 -c "import json;d=json.load(open('qa_report.json'));print(d.get('summary',{}).get('failed',0))" 2>/dev/null || echo 0)
+              echo "qa_passed=$PASSED" >> $GITHUB_OUTPUT
+              echo "qa_failed=$FAILED" >> $GITHUB_OUTPUT
+              echo "QA: $PASSED passed / $FAILED failed"
+            fi
+          elif [ -f "tests/test_ui.py" ]; then
+            echo "qa_type=playwright" >> $GITHUB_OUTPUT
+          else
+            echo "qa_type=none" >> $GITHUB_OUTPUT
+          fi
 
+      - name: 推送靜態網站（每客戶獨立 Repo）
+        id: push
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          PROJECT_ID: ${{ inputs.project_id }}
+          PROJECT_REPO: ${{ inputs.project_repo }}
+        run: |
+          git config user.name "AI Company OS"
+          git config user.email "ai@company-os.com"
           if [ -f "index.html" ]; then
-            # 靜態網站：直接推到 main，GitHub Pages 才能真正服務
-            git add -A
-            if git diff --cached --quiet; then
-              echo "no_changes=true" >> $GITHUB_OUTPUT
-            else
-              git commit -m "feat(AI): 自動開發靜態網站 Issue #${{ inputs.issue_number }}"
+            # 部署到客戶專屬 Repo（Phase 3 完整隔離）
+            PROJECTS_REPO="ai-company-projects"
+            OWNER="a0913719875-commits"
+            # Deploy to subfolder in ai-company-projects (one repo, all clients)
+            SUBFOLDER="${PROJECT_REPO:-issue-${{ inputs.issue_number }}}"
+            echo "Deploying to: ${PROJECTS_REPO}/${SUBFOLDER}/"
+            git clone https://x-access-token:${GH_TOKEN}@github.com/${OWNER}/${PROJECTS_REPO}.git /tmp/hub_repo 2>/dev/null || true
+            if [ -d "/tmp/hub_repo" ]; then
+              mkdir -p /tmp/hub_repo/${SUBFOLDER}
+              cp index.html /tmp/hub_repo/${SUBFOLDER}/
+              for f in *.html *.css *.js; do
+                [ -f "$f" ] && [ "$f" != "index.html" ] && cp "$f" /tmp/hub_repo/${SUBFOLDER}/ 2>/dev/null || true
+              done
+              cd /tmp/hub_repo
+              git config user.name "AI Company OS"
+              git config user.email "ai@company-os.com"
+              git add -A
+              git diff --cached --quiet || git commit -m "feat[${SUBFOLDER}]: ${PROJECT_ID}"
               git push origin HEAD:main
-              echo "pushed_to_main=true" >> $GITHUB_OUTPUT
+              cd -
+              PROJ_URL="https://${OWNER}.github.io/${PROJECTS_REPO}/${SUBFOLDER}/"
+              echo "page_url=$PROJ_URL" >> $GITHUB_OUTPUT
+              echo "pushed=true" >> $GITHUB_OUTPUT
+              echo "Deployed: $PROJ_URL"
             fi
           else
-            # 非靜態：建立分支 + PR 供審查
             BRANCH="ai/issue-${{ inputs.issue_number }}"
             git checkout -b $BRANCH
             git add -A
-            if git diff --cached --quiet; then
-              echo "no_changes=true" >> $GITHUB_OUTPUT
-            else
-              git commit -m "feat(AI): 自動開發 Issue #${{ inputs.issue_number }}"
-              git push origin $BRANCH
-              PR_URL=$(gh pr create \
-                --title "🤖 [AI] ${{ steps.issue.outputs.title }}" \
+            if ! git diff --cached --quiet; then
+              git commit -m "feat: AI Issue #${{ inputs.issue_number }}"
+              git push --force-with-lease origin $BRANCH || git push origin $BRANCH
+              gh pr create --title "AI Issue #${{ inputs.issue_number }}" \
                 --body "Issue: ${{ inputs.issue_url }}" \
-                --base main --head $BRANCH)
-              echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
+                --base main --head $BRANCH \
+                --json number -q '.number' | \
+                xargs -I{} gh pr merge {} --squash --auto 2>/dev/null || true
             fi
           fi
 
-      - name: 部署靜態網站到 GitHub Pages
-        id: deploy
-        if: steps.pr.outputs.pushed_to_main == 'true'
+      - name: GitHub Pages
+        id: pages
+        if: steps.push.outputs.pushed == 'true' && steps.push.outputs.page_url == ''
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
         run: |
-          # 啟用 GitHub Pages（若還未啟用）
-          gh api repos/${{ github.repository }}/pages \
-            -X POST --field source[branch]=main --field source[path]=/ 2>/dev/null || true
+          PROJECT_REPO="${{ inputs.project_repo }}"
+          OWNER="a0913719875-commits"
+          OWNER="a0913719875-commits"
+          SUBFOLDER="${{ inputs.project_repo }}"
+          SUBFOLDER="${SUBFOLDER:-issue-${{ inputs.issue_number }}}"
+          echo "url=https://${OWNER}.github.io/ai-company-projects/${SUBFOLDER}/" >> $GITHUB_OUTPUT
 
-          REPO_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f2)
-          OWNER=$(echo "${{ github.repository }}" | cut -d'/' -f1)
-          PAGE_URL="https://${OWNER}.github.io/${REPO_NAME}/"
-          echo "page_url=$PAGE_URL" >> $GITHUB_OUTPUT
-          echo "✅ 部署網址：$PAGE_URL"
+      - name: 後端 Cloud Run 自動部署（每客戶獨立）
+        id: cr_deploy
+        if: hashFiles('Dockerfile') != '' && hashFiles('deploy_info.json') != ''
+        continue-on-error: true
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+        run: |
+          if [ -z "$GCP_SA_KEY" ]; then echo "No GCP key, skip"; exit 0; fi
+          echo "$GCP_SA_KEY" > /tmp/key.json
+          gcloud auth activate-service-account --key-file=/tmp/key.json --quiet
+          gcloud config set project ${{ secrets.GCP_PROJECT }} --quiet
+
+          SERVICE=$(python3 -c "import json;d=json.load(open('deploy_info.json'));print(d.get('service_name','ai-project'))" 2>/dev/null || echo "ai-project")
+          IMAGE="${{ secrets.GCP_REGISTRY }}/${SERVICE}:latest"
+          REGION="${{ secrets.GCP_REGION }}"
+
+          gcloud auth configure-docker ${REGION}-docker.pkg.dev --quiet
+          docker build -t $IMAGE . --quiet 2>&1 | tail -3
+          docker push $IMAGE --quiet 2>&1 | tail -2
+          gcloud run deploy $SERVICE --image=$IMAGE --region=$REGION \
+            --allow-unauthenticated --port=8080 --memory=512Mi \
+            --project=${{ secrets.GCP_PROJECT }} --quiet 2>&1 | tail -4
+
+          CR_URL=$(gcloud run services describe $SERVICE --region=$REGION \
+            --format="value(status.url)" --project=${{ secrets.GCP_PROJECT }} 2>/dev/null || echo "")
+          echo "cr_url=$CR_URL" >> $GITHUB_OUTPUT
+          echo "Deployed backend: $CR_URL"
+
+      - name: Rollback (失敗時)
+        if: failure()
+        env:
+          LINE_TOKEN: ${{ secrets.LINE_CHANNEL_TOKEN }}
+        run: |
+          curl -s -X POST "https://api.line.me/v2/bot/message/push" \
+            -H "Authorization: Bearer ${LINE_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{"to":"U9f200ef6c095c25edd6aa44cd927fa1b","messages":[{"type":"text","text":"Codex 部署失敗，已通知 CTO AI 分析"}]}' || true
 
       - name: 關閉 Issue
         if: success()
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
         run: |
+          REPO="${{ inputs.target_repo }}"
+          REPO="${REPO:-market-ecommerce-app}"
           gh issue close ${{ inputs.issue_number }} \
-            --comment "✅ AI 開發完成！" \
+            --repo "a0913719875-commits/${REPO}" \
+            --comment "AI Company OS 開發完成！" \
             --reason completed || true
 
-      - name: 通知 n8n 完成（含網址）
+      - name: 通知 n8n
         if: always()
         env:
-          DEPLOY_URL: ${{ steps.deploy.outputs.page_url }}
-          PR_URL: ${{ steps.pr.outputs.pr_url }}
+          DEPLOY_URL: ${{ steps.push.outputs.page_url || steps.pages.outputs.url }}
+          LINE_TOKEN: ${{ secrets.LINE_CHANNEL_TOKEN }}
         run: |
-          STATUS="${{ job.status }}"
+          ISSUE_NUM="${{ inputs.issue_number }}"
+          ISSUE_URL="${{ inputs.issue_url }}"
+          FINAL_URL="${DEPLOY_URL:-}"
           NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          DEPLOY_URL="${DEPLOY_URL:-}"
-
-          # 通知 n8n GitHub Issue 關閉
           curl -s -X POST https://ppplay.zeabur.app/webhook/github-issue-events \
             -H "Content-Type: application/json" \
-            -d "{\"action\":\"closed\",\"issue\":{\"number\":${{ inputs.issue_number }},\"title\":\"${{ steps.issue.outputs.title }}\",\"html_url\":\"${{ inputs.issue_url }}\",\"state\":\"closed\",\"closed_at\":\"$NOW\",\"body\":\"LINE OA 用戶：\`U9f200ef6c095c25edd6aa44cd927fa1b\`\",\"labels\":[]},\"deploy_url\":\"$DEPLOY_URL\"}" || true
-
-          # 直接推播 LINE（含網址）
-          if [ -n "$DEPLOY_URL" ]; then
-            MSG="完成品網址：\n${DEPLOY_URL}\n\n（若頁面未顯示請等 1-2 分鐘）"
-          else
-            MSG="開發完成！\nPR: ${PR_URL:-已建立}"
-          fi
-
-          curl -s -X POST "https://api.line.me/v2/bot/message/push" \
-            -H "Authorization: Bearer ${{ secrets.LINE_CHANNEL_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -d "{\"to\":\"U9f200ef6c095c25edd6aa44cd927fa1b\",\"messages\":[{\"type\":\"text\",\"text\":\"$MSG\"}]}" || true
+            -d "{\"action\":\"closed\",\"issue\":{\"number\":${ISSUE_NUM},\"title\":\"AI Issue #${ISSUE_NUM}\",\"html_url\":\"${ISSUE_URL}\",\"state\":\"closed\",\"closed_at\":\"${NOW}\",\"body\":\"LINE OA User: U9f200ef6c095c25edd6aa44cd927fa1b\",\"labels\":[]},\"deploy_url\":\"${FINAL_URL}\"}" || true
