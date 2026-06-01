@@ -48,6 +48,33 @@ if not prompt:
 print(f"需求：{issue_title[:60]}")
 print(f"Prompt 長度：{len(prompt)} 字元")
 
+# ─── 讀取 API 金鑰（從 PM Center）─────────────────────────────
+import urllib.request, json as _json, base64 as _b64
+PM_CENTER = "https://ai-pm-center-827577239332.asia-east1.run.app"
+stored_keys = {}
+try:
+    req = urllib.request.Request(f"{PM_CENTER}/projects/{project_id}/keys")
+    resp = urllib.request.urlopen(req, timeout=5)
+    stored_keys = _json.loads(resp.read()).get("keys", {})
+    if stored_keys:
+        print(f"已載入 API 金鑰: {list(stored_keys.keys())}")
+except Exception as e:
+    print(f"無 API 金鑰或載入失敗: {e}")
+
+# 建立 API 金鑰的 STRICT_RULE 補充
+API_KEY_RULES = ""
+if stored_keys:
+    key_lines = "\n".join([f"  - {k}: 使用環境變數 os.environ.get('{k}', '')" for k in stored_keys.keys()])
+    API_KEY_RULES = f"""
+【API 金鑰使用規則】
+以下 API 金鑰已由消費者提供，必須在程式中正確使用：
+{key_lines}
+
+在 FastAPI 中用 os.environ.get('KEY_NAME') 讀取。
+在靜態 HTML 中用 localStorage 或 .env.local 方式。
+絕對不要在前端 JS 中硬編碼 SECRET 金鑰。
+"""
+
 # ─── 系統提示詞 ─────────────────────────────────────────
 STRICT_RULE = f"""
 【最重要規則】
@@ -57,6 +84,7 @@ STRICT_RULE = f"""
 如果需求是「薪資記帳本」就做薪資記帳本，不能做會員系統。
 如果需求是「預約系統」就做預約系統，不能做其他東西。
 功能必須與需求完全對應，不得替換或簡化核心功能。
+{API_KEY_RULES}
 """
 
 if needs_backend and not is_static:
