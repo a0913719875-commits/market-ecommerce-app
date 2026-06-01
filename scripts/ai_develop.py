@@ -88,8 +88,29 @@ STRICT_RULE = f"""
 """
 
 if needs_backend and not is_static:
-    system_prompt = f"""你是資深全端工程師（AI Company OS Codex）。
+    system_prompt = f"""你是世界頂尖的全端工程師（AI Company OS Codex）。
 {STRICT_RULE}
+
+你的目標：生成一個「生產環境就緒」的真實產品，不是 Demo。
+
+【後端品質標準】
+- 完整的 CRUD API（Create/Read/Update/Delete 都要實作）
+- 資料驗證（Pydantic models 完整定義）
+- 適當的 HTTP 狀態碼（200/201/400/404/500）
+- 錯誤處理（try/except + 有意義的錯誤訊息）
+- 搜尋和篩選端點
+- 分頁支援（limit/offset）
+- 資料匯出端點（CSV 格式）
+- API 文件（使用 FastAPI 自動 Swagger）
+
+【前端品質標準】
+- 完整呼叫所有 API 端點
+- Loading 狀態顯示
+- 錯誤訊息顯示
+- 成功操作後的 Toast 通知
+- 確認刪除的對話框
+- 搜尋和篩選 UI
+- 分頁元件
 
 根據需求生成完整可執行的 FastAPI 後端 + 前端。
 輸出格式：每個文件用 '=== 文件名 ===' 分隔。
@@ -132,11 +153,45 @@ else:
             break
     sc = style_configs.get(ui_style, style_configs["科技"])
 
-    system_prompt = f"""你是世界頂尖的 UI/UX 前端工程師（AI Company OS Codex）。
+    system_prompt = f"""你是世界頂尖的全端工程師（AI Company OS Codex）。
 {STRICT_RULE}
 
-你的目標是生成「讓客戶驚艷」的高品質網頁。
-設計標準參考：Apple、Linear.app、Stripe、Vercel Dashboard。
+你的終極目標：生成一個「真正可以每天使用」的產品，不是 Demo。
+
+【產品品質標準 — 必須全部達到】
+
+★ 功能完整性（最重要）
+- 每個功能都要能真正運作，不能只是 UI 空殼
+- 所有按鈕點了要有真實效果
+- 資料要能新增、編輯、刪除、查詢
+- 有資料驗證（空白欄位、格式錯誤要提示）
+- 有確認對話框（刪除前要確認）
+- 有 Loading 狀態（操作中顯示等待）
+- 有 Empty State（沒有資料時顯示友善訊息）
+- 有錯誤處理（操作失敗要告知用戶）
+
+★ 資料管理
+- 所有資料存入 localStorage，重開頁面不會消失
+- 支援搜尋和篩選功能
+- 資料有時間戳記（建立時間、修改時間）
+- 重要資料有備份/匯出功能（CSV 或 JSON）
+
+★ 統計與分析
+- 有數字摘要（總數、加總、平均等）
+- 有圖表或視覺化（如果資料允許）
+- 有時間段篩選（本週、本月、自訂）
+
+★ 使用者體驗
+- 鍵盤支援（Enter 送出、Escape 取消）
+- 操作成功後有明確回饋（Toast 通知）
+- 支援拖曳排序（如果是列表）
+- 手機版完整支援（RWD）
+
+★ 業務邏輯
+- 根據需求加入合理的業務規則
+- 例如：記帳本 → 自動計算結餘、月份統計
+- 例如：預約系統 → 防止重複預約、時段衝突
+- 例如：客戶管理 → 生日提醒、分類標籤
 
 輸出格式：每個文件用 '=== 文件名 ===' 分隔。
 
@@ -202,7 +257,7 @@ else:
 # ─── 呼叫 GPT-4o ─────────────────────────────────────────
 response = client.chat.completions.create(
     model="gpt-4o",
-    max_tokens=6000,
+    max_tokens=16000,
     messages=[
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": prompt}
