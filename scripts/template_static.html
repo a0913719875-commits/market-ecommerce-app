@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{APP_TITLE}}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: {{BG_COLOR}}; color: {{TEXT_COLOR}}; min-height: 100vh; }
+    .card { background: {{CARD_COLOR}}; border: 1px solid {{BORDER_COLOR}}; border-radius: 14px; }
+    .btn-primary { background: linear-gradient(135deg, {{ACCENT1}}, {{ACCENT2}}); color: white; border: none; border-radius: 10px; padding: 10px 20px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+    .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn-secondary { background: transparent; color: {{ACCENT1}}; border: 1px solid {{ACCENT1}}33; border-radius: 10px; padding: 8px 16px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
+    .btn-secondary:hover { background: {{ACCENT1}}11; }
+    .btn-danger { background: #dc262622; color: #dc2626; border: 1px solid #dc262633; border-radius: 8px; padding: 6px 12px; font-size: 13px; cursor: pointer; transition: all 0.2s; }
+    .btn-danger:hover { background: #dc262633; }
+    .input { background: {{CARD_COLOR}}; border: 1px solid {{BORDER_COLOR}}; border-radius: 10px; padding: 10px 14px; color: {{TEXT_COLOR}}; width: 100%; font-size: 14px; transition: border 0.2s; outline: none; }
+    .input:focus { border-color: {{ACCENT1}}; box-shadow: 0 0 0 3px {{ACCENT1}}22; }
+    .select { background: {{CARD_COLOR}}; border: 1px solid {{BORDER_COLOR}}; border-radius: 10px; padding: 10px 14px; color: {{TEXT_COLOR}}; font-size: 14px; cursor: pointer; outline: none; }
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+    .table-row { border-bottom: 1px solid {{BORDER_COLOR}}; transition: background 0.15s; }
+    .table-row:hover { background: {{ACCENT1}}08; }
+    /* Modal */
+    .modal-overlay { position: fixed; inset: 0; background: #00000088; display: flex; align-items: center; justify-content: center; z-index: 50; padding: 16px; }
+    .modal-box { background: {{CARD_COLOR}}; border-radius: 18px; width: 100%; max-width: 480px; padding: 28px; border: 1px solid {{BORDER_COLOR}}; }
+    /* Toast */
+    .toast { position: fixed; bottom: 24px; right: 24px; background: #1a1a2e; border: 1px solid {{ACCENT1}}44; border-radius: 12px; padding: 14px 20px; color: white; font-size: 14px; font-weight: 500; z-index: 100; transform: translateY(100px); transition: transform 0.3s ease; }
+    .toast.show { transform: translateY(0); }
+    .toast.success { border-left: 3px solid #00ff88; }
+    .toast.error { border-left: 3px solid #ff4466; }
+    /* Empty state */
+    .empty-state { text-align: center; padding: 60px 20px; color: #666; }
+    /* Stat card */
+    .stat-card { text-align: center; }
+    .stat-value { font-size: 28px; font-weight: 800; color: {{ACCENT1}}; }
+    .stat-label { font-size: 12px; color: #888; margin-top: 4px; }
+    /* Search */
+    .search-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    /* Confirm dialog */
+    .confirm-overlay { position: fixed; inset: 0; background: #00000088; display: flex; align-items: center; justify-content: center; z-index: 60; padding: 16px; }
+    .confirm-box { background: {{CARD_COLOR}}; border-radius: 16px; width: 100%; max-width: 340px; padding: 24px; border: 1px solid {{BORDER_COLOR}}; text-align: center; }
+  </style>
+</head>
+<body class="p-4 md:p-8">
+
+<!-- Toast -->
+<div id="toast" class="toast"></div>
+
+<!-- Confirm Dialog -->
+<div id="confirmOverlay" class="confirm-overlay hidden">
+  <div class="confirm-box">
+    <div class="text-lg font-bold mb-2" id="confirmTitle">確認刪除</div>
+    <div class="text-sm text-gray-400 mb-6" id="confirmMsg">此操作無法復原，確定要刪除嗎？</div>
+    <div class="flex gap-3 justify-center">
+      <button class="btn-secondary" onclick="closeConfirm()">取消</button>
+      <button class="btn-danger" id="confirmOkBtn" style="padding:8px 20px;">確定刪除</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div id="modalOverlay" class="modal-overlay hidden">
+  <div class="modal-box">
+    <div class="flex justify-between items-center mb-6">
+      <h2 class="text-xl font-bold" id="modalTitle">新增資料</h2>
+      <button onclick="closeModal()" style="background:none;border:none;color:#888;font-size:22px;cursor:pointer;">✕</button>
+    </div>
+    <form id="dataForm" onsubmit="saveRecord(event)">
+      {{FORM_FIELDS}}
+      <div class="flex gap-3 mt-6">
+        <button type="button" class="btn-secondary flex-1" onclick="closeModal()">取消</button>
+        <button type="submit" class="btn-primary flex-1" id="saveBtn">儲存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Header -->
+<div class="flex flex-wrap gap-3 items-center justify-between mb-8">
+  <div>
+    <h1 class="text-3xl font-black">{{APP_TITLE}}</h1>
+    <p class="text-gray-500 text-sm mt-1">{{APP_DESC}}</p>
+  </div>
+  <div class="flex gap-2">
+    <button class="btn-secondary" onclick="exportCSV()">📥 匯出 CSV</button>
+    <button class="btn-primary" onclick="openAddModal()">＋ 新增{{ITEM_NAME}}</button>
+  </div>
+</div>
+
+<!-- Stats Row -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+  {{STAT_CARDS}}
+</div>
+
+<!-- Search & Filter -->
+<div class="card p-4 mb-6">
+  <div class="search-row">
+    <input class="input" style="flex:1;min-width:180px;" id="searchInput" placeholder="🔍 搜尋..." oninput="filterData()">
+    {{FILTER_SELECTS}}
+    <button class="btn-secondary" onclick="clearFilters()">清除篩選</button>
+  </div>
+</div>
+
+<!-- Data Table -->
+<div class="card overflow-hidden">
+  <div class="overflow-x-auto">
+    <table style="width:100%;border-collapse:collapse;">
+      <thead>
+        <tr style="border-bottom:1px solid {{BORDER_COLOR}};">
+          {{TABLE_HEADERS}}
+          <th style="padding:14px 16px;text-align:right;font-weight:600;font-size:13px;color:#888;">操作</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+    <div id="emptyState" class="empty-state hidden">
+      <div style="font-size:48px;margin-bottom:12px;">📭</div>
+      <div class="font-bold text-lg">暫無資料</div>
+      <div class="text-sm mt-2">點擊右上角「新增」開始使用</div>
+    </div>
+  </div>
+  <div class="p-4 flex justify-between items-center" style="border-top:1px solid {{BORDER_COLOR}};">
+    <div class="text-sm text-gray-500" id="countInfo">共 0 筆</div>
+    <div class="flex gap-2" id="pagination"></div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════
+// 資料定義 — 由 AI 自訂
+// ════════════════════════════════════════════════════
+const APP_CONFIG = {
+  storageKey: '{{STORAGE_KEY}}',
+  itemName: '{{ITEM_NAME}}',
+  fields: {{FIELDS_CONFIG}},
+  stats: {{STATS_CONFIG}},
+  sampleData: {{SAMPLE_DATA}}
+};
+
+// ════════════════════════════════════════════════════
+// 核心引擎 — 不需修改
+// ════════════════════════════════════════════════════
+let records = [];
+let editId = null;
+let confirmCallback = null;
+let currentPage = 1;
+const PAGE_SIZE = 15;
+
+function load() {
+  const stored = localStorage.getItem(APP_CONFIG.storageKey);
+  records = stored ? JSON.parse(stored) : [];
+  if (records.length === 0 && APP_CONFIG.sampleData.length > 0) {
+    records = APP_CONFIG.sampleData.map((d, i) => ({...d, id: Date.now() + i, createdAt: new Date().toISOString()}));
+    save();
+  }
+  render();
+}
+
+function save() {
+  localStorage.setItem(APP_CONFIG.storageKey, JSON.stringify(records));
+  updateStats();
+}
+
+function getFiltered() {
+  const q = document.getElementById('searchInput')?.value.toLowerCase() || '';
+  let result = records;
+  if (q) {
+    result = result.filter(r => Object.values(r).some(v => String(v).toLowerCase().includes(q)));
+  }
+  // Apply filter selects
+  document.querySelectorAll('.filter-select').forEach(sel => {
+    if (sel.value) result = result.filter(r => String(r[sel.dataset.field]) === sel.value);
+  });
+  return result;
+}
+
+function render() {
+  const filtered = getFiltered();
+  const total = filtered.length;
+  const start = (currentPage - 1) * PAGE_SIZE;
+  const page = filtered.slice(start, start + PAGE_SIZE);
+
+  const tbody = document.getElementById('tableBody');
+  tbody.innerHTML = '';
+
+  if (page.length === 0) {
+    document.getElementById('emptyState').classList.remove('hidden');
+  } else {
+    document.getElementById('emptyState').classList.add('hidden');
+    page.forEach(r => {
+      const tr = document.createElement('tr');
+      tr.className = 'table-row';
+      tr.innerHTML = renderRow(r) + `
+        <td style="padding:12px 16px;text-align:right;">
+          <button class="btn-secondary" style="margin-right:6px;padding:5px 12px;font-size:12px;" onclick="openEditModal('${r.id}')">編輯</button>
+          <button class="btn-danger" onclick="confirmDelete('${r.id}')">刪除</button>
+        </td>`;
+      tbody.appendChild(tr);
+    });
+  }
+
+  document.getElementById('countInfo').textContent = `共 ${total} 筆`;
+  renderPagination(total);
+  updateStats();
+}
+
+function renderPagination(total) {
+  const pages = Math.ceil(total / PAGE_SIZE);
+  const container = document.getElementById('pagination');
+  container.innerHTML = '';
+  if (pages <= 1) return;
+  for (let i = 1; i <= pages; i++) {
+    const btn = document.createElement('button');
+    btn.textContent = i;
+    btn.className = i === currentPage ? 'btn-primary' : 'btn-secondary';
+    btn.style.padding = '4px 10px'; btn.style.fontSize = '13px';
+    btn.onclick = () => { currentPage = i; render(); };
+    container.appendChild(btn);
+  }
+}
+
+function filterData() { currentPage = 1; render(); }
+function clearFilters() {
+  document.getElementById('searchInput').value = '';
+  document.querySelectorAll('.filter-select').forEach(s => s.value = '');
+  filterData();
+}
+
+function openAddModal() {
+  editId = null;
+  document.getElementById('modalTitle').textContent = '新增' + APP_CONFIG.itemName;
+  document.getElementById('saveBtn').textContent = '新增';
+  document.getElementById('dataForm').reset();
+  document.getElementById('modalOverlay').classList.remove('hidden');
+}
+
+function openEditModal(id) {
+  editId = id;
+  const r = records.find(x => String(x.id) === String(id));
+  if (!r) return;
+  document.getElementById('modalTitle').textContent = '編輯' + APP_CONFIG.itemName;
+  document.getElementById('saveBtn').textContent = '儲存';
+  APP_CONFIG.fields.forEach(f => {
+    const el = document.getElementById('f_' + f.name);
+    if (el && r[f.name] !== undefined) el.value = r[f.name];
+  });
+  document.getElementById('modalOverlay').classList.remove('hidden');
+}
+
+function closeModal() { document.getElementById('modalOverlay').classList.add('hidden'); editId = null; }
+
+function saveRecord(e) {
+  e.preventDefault();
+  const data = {};
+  let valid = true;
+  APP_CONFIG.fields.forEach(f => {
+    const el = document.getElementById('f_' + f.name);
+    const val = el ? el.value.trim() : '';
+    if (f.required && !val) { el.style.borderColor = '#dc2626'; valid = false; return; }
+    if (el) el.style.borderColor = '';
+    data[f.name] = f.type === 'number' ? (parseFloat(val) || 0) : val;
+  });
+  if (!valid) { showToast('請填寫必填欄位', 'error'); return; }
+
+  if (editId) {
+    const idx = records.findIndex(x => String(x.id) === String(editId));
+    if (idx >= 0) { records[idx] = {...records[idx], ...data, updatedAt: new Date().toISOString()}; }
+    showToast('已更新', 'success');
+  } else {
+    records.unshift({...data, id: Date.now(), createdAt: new Date().toISOString()});
+    showToast('已新增', 'success');
+  }
+  save(); render(); closeModal();
+}
+
+function confirmDelete(id) {
+  confirmCallback = () => {
+    records = records.filter(x => String(x.id) !== String(id));
+    save(); render(); closeConfirm();
+    showToast('已刪除', 'success');
+  };
+  document.getElementById('confirmOkBtn').onclick = confirmCallback;
+  document.getElementById('confirmOverlay').classList.remove('hidden');
+}
+
+function closeConfirm() { document.getElementById('confirmOverlay').classList.add('hidden'); }
+
+function exportCSV() {
+  const data = getFiltered();
+  if (data.length === 0) { showToast('沒有資料可匯出', 'error'); return; }
+  const headers = APP_CONFIG.fields.map(f => f.label);
+  const rows = data.map(r => APP_CONFIG.fields.map(f => '"' + String(r[f.name] || '').replace(/"/g, '""') + '"'));
+  const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  const blob = new Blob(['﻿' + csv], {type: 'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url;
+  a.download = APP_CONFIG.itemName + '_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click(); URL.revokeObjectURL(url);
+  showToast('CSV 匯出成功', 'success');
+}
+
+function showToast(msg, type = 'success') {
+  const t = document.getElementById('toast');
+  t.textContent = (type === 'success' ? '✅ ' : '❌ ') + msg;
+  t.className = 'toast show ' + type;
+  setTimeout(() => t.className = 'toast', 3000);
+}
+
+// ════════════════════════════════════════════════════
+// 業務邏輯 — 由 AI 自訂
+// ════════════════════════════════════════════════════
+{{BUSINESS_LOGIC}}
+
+// 啟動
+load();
+</script>
+</body>
+</html>

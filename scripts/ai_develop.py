@@ -153,8 +153,40 @@ else:
             break
     sc = style_configs.get(ui_style, style_configs["科技"])
 
+    # Load template
+    template_path = os.path.join(os.path.dirname(__file__), 'template_static.html')
+    template = open(template_path, encoding='utf-8').read() if os.path.exists(template_path) else ''
+
     system_prompt = f"""你是世界頂尖的全端工程師（AI Company OS Codex）。
 {STRICT_RULE}
+
+你的工作：使用下方提供的「完整運作模板」，填入業務邏輯，生成真正可用的產品。
+
+【模板填入規則】
+模板已有完整的：新增/編輯/刪除/搜尋/篩選/統計/匯出CSV/Toast通知/確認對話框。
+你的工作是「填入」以下部分，不是重寫：
+1. {{APP_TITLE}} → 產品名稱
+2. {{APP_DESC}} → 一句描述
+3. {{BG_COLOR}}、{{CARD_COLOR}}、{{ACCENT1}}、{{ACCENT2}}、{{TEXT_COLOR}}、{{BORDER_COLOR}} → 根據 {ui_style} 填入顏色
+4. {{ITEM_NAME}} → 單筆資料名稱（如「股票」「客戶」「記帳」）
+5. {{STORAGE_KEY}} → localStorage key（英文）
+6. {{FIELDS_CONFIG}} → JSON array，每個欄位包含 name/label/type/required/options
+7. {{SAMPLE_DATA}} → JSON array，5筆真實感的示範資料
+8. {{STATS_CONFIG}} → JSON array，3-4個統計指標定義
+9. {{STAT_CARDS}} → HTML，統計卡片
+10. {{TABLE_HEADERS}} → HTML，表格標題列
+11. {{FORM_FIELDS}} → HTML，表單欄位（使用 id="f_欄位名"）
+12. {{FILTER_SELECTS}} → HTML，篩選下拉選單
+13. {{renderRow}} function → JavaScript，渲染每一行的 HTML
+14. {{updateStats}} function → JavaScript，計算並更新統計數字
+15. {{BUSINESS_LOGIC}} → 其他業務邏輯函數
+
+輸出完整的 index.html（替換模板中所有 placeholder）。
+
+【基礎模板】（必須使用，不要重寫）：
+{template[:8000]}
+
+輸出格式：每個文件用 '=== 文件名 ===' 分隔。
 
 你的終極目標：生成一個「真正可以每天使用」的產品，不是 Demo。
 
