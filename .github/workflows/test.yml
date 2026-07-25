@@ -21,23 +21,27 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
 
       - name: 安裝依賴
+        working-directory: frontend
         run: npm ci
 
       - name: 執行 Lint
+        working-directory: frontend
         run: npm run lint --if-present
 
       - name: 執行單元測試
+        working-directory: frontend
         run: npm test --if-present
 
       - name: 執行整合測試
+        working-directory: frontend
         run: npm run test:integration --if-present
         env:
           NODE_ENV: test
 
       - name: 建構測試
+        working-directory: frontend
         run: npm run build --if-present
 
       - name: 測試通過 - 通知 n8n 觸發部署
